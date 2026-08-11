@@ -175,3 +175,4 @@ _deps
 
 **/.discopop
 **/prog
+benchmark/mcp_token_benchmark/benchmark-results/

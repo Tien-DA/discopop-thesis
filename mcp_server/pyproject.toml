@@ -51,6 +51,7 @@ dev = [
 
 [project.scripts]
 discopop_mcp_server = "mcp_server.server:main"
+mcp_token_benchmark = "mcp_server.benchmark_cli:main"
 
 [project.urls]
 Homepage = "https://www.discopop.tu-darmstadt.de/"
