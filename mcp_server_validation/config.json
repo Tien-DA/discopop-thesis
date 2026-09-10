@@ -1,0 +1,27 @@
+{
+    "llm_server_url": "http://localhost:18000/v1",
+    "default_model": "Qwen3-Coder-30B-A3B-Instruct",
+    "default_runs": 3,
+    "default_max_steps": 6,
+    "enabled_mcp_servers": [
+        "disco_pop_mcp"
+    ],
+    "benchmark_cases": [
+        "add_code",
+        "refactor_code", 
+        "delete_code",
+        "parallel_code",
+        "optimize_performance",
+        "fix_bug",
+        "add_feature"
+    ],
+    "ui_port": 8080,
+    "ui_host": "localhost",
+    "allow_http": false,
+    "ssh_tunnel": {
+        "host": "130.83.143.245",
+        "user": "dinhtienvu",
+        "local_port": 18000,
+        "remote_port": 18000
+    }
+}

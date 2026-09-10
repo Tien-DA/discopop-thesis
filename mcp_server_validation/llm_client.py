@@ -1,14 +1,9 @@
 """
-LLM client for OpenAI-compatible APIs.
+LLM Client Module
 """
 
-from typing import Any, Dict
-
 import requests
-
-from utils.logger import setup_logger
-
-logger = setup_logger(__name__)
+from typing import Any, Dict
 
 
 class LLMClient:
@@ -48,7 +43,7 @@ class LLMClient:
         url = f"{self.server_url}/responses"
 
         try:
-            logger.info("Testing connection to: %s", url)
+            print(f"Testing connection to: {url}")
 
             response = self.session.post(
                 url,
@@ -56,30 +51,23 @@ class LLMClient:
                 timeout=30,
             )
 
-            logger.info("Response status: %s", response.status_code)
+            print(f"Response status: {response.status_code}")
 
             if response.status_code == 200:
                 self.connected = True
-                logger.info(
-                    "Successfully connected to LLM server at %s",
-                    self.server_url,
-                )
+                print(f"Successfully connected to LLM server at {self.server_url}")
                 return True
 
-            logger.error(
-                "LLM connection failed: %s - %s",
-                response.status_code,
-                response.text,
-            )
+            print(f"LLM connection failed: {response.status_code} - {response.text}")
             self.connected = False
             return False
 
         except requests.exceptions.Timeout:
-            logger.error("LLM connection timed out")
+            print("LLM connection timed out")
         except requests.exceptions.ConnectionError:
-            logger.error("Could not connect to LLM server")
+            print("Could not connect to LLM server")
         except requests.exceptions.RequestException as exc:
-            logger.error("LLM request failed: %s", exc)
+            print(f"LLM request failed: {exc}")
 
         self.connected = False
         return False
@@ -94,7 +82,12 @@ class LLMClient:
         prompt: str,
         max_tokens: int = 1024,
     ) -> Dict[str, Any]:
-        """Send a prompt to the LLM and return the raw API response."""
+        """
+        Send a prompt to the LLM and return the raw API response.
+        The caller can extract:
+            response["usage"]
+        to obtain real token usage.
+        """
 
         if not self.connected:
             raise RuntimeError("LLM client is not connected")
@@ -114,13 +107,60 @@ class LLMClient:
                 timeout=300,
             )
 
+            if response.status_code != 200:
+                print(f"LLM server response: {response.text}")
+
             response.raise_for_status()
 
             return response.json()
 
         except requests.exceptions.RequestException as exc:
-            logger.error("LLM generation failed: %s", exc)
+            print(f"LLM generation failed: {exc}")
             raise RuntimeError(f"LLM generation failed: {exc}") from exc
+
+    def get_usage(
+        self,
+        response: Dict[str, Any],
+    ) -> Dict[str, int]:
+        """
+        Extract token usage from an API response.
+
+        Returns zero values if the server does not provide usage.
+        """
+
+        usage = response.get("usage", {})
+
+        return {
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+        }
+
+    def get_output_text(
+        self,
+        response: Dict[str, Any],
+    ) -> str:
+        """
+        Extract generated text from the Responses API response.
+        """
+
+        if "output_text" in response:
+            return response["output_text"]
+
+        output = response.get("output", [])
+
+        texts = []
+
+        for item in output:
+            content = item.get("content", [])
+
+            for content_item in content:
+                if content_item.get("type") == "output_text":
+                    text = content_item.get("text", "")
+                    if text:
+                        texts.append(text)
+
+        return "\n".join(texts)
 
     def get_connection_info(self) -> Dict[str, Any]:
         """Return non-sensitive connection information."""
