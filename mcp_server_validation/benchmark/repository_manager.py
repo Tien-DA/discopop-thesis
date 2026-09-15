@@ -44,7 +44,31 @@ class RepositoryManager:
             ]
         )
 
+        self.initialize_submodules(workspace)
+
         return workspace
+
+    def initialize_submodules(self, workspace: Path) -> None:
+        """
+        Populate repository submodules after checking out the target commit.
+
+        Some SWE-bench repositories, such as jqlang/jq, keep required build
+        dependencies in submodules. A plain checkout leaves those directories
+        empty, which makes full-project DiscoPoP builds fail before the agent
+        can run.
+        """
+
+        self._run(
+            [
+                "git",
+                "-C",
+                str(workspace),
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ]
+        )
 
     @staticmethod
     def _run(command: list[str]) -> None:

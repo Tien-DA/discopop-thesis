@@ -236,6 +236,14 @@ class BenchmarkRunner:
                 ]
             )
 
+            print(
+                "Initializing submodules..."
+            )
+
+            self.repository_manager.initialize_submodules(
+                workspace
+            )
+
             # ----------------------------------------------------
             # Dispatch
             # ----------------------------------------------------
@@ -358,6 +366,66 @@ class BenchmarkRunner:
     # ============================================================
     # FULL DISCOPOP
     # ============================================================
+    @staticmethod
+    def _tail_text(text, max_lines=40):
+        if not text:
+            return ""
+
+        lines = text.splitlines()
+
+        if len(lines) <= max_lines:
+            return text
+
+        omitted = len(lines) - max_lines
+
+        return "\n".join(
+            [
+                f"... omitted {omitted} earlier lines ...",
+                *lines[-max_lines:],
+            ]
+        )
+
+    def _summarize_discopop_result(self, result, mode_dir):
+        logs_dir = mode_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        compact = dict(result)
+        success = compact.get("success", False)
+        stage = compact.get("stage", "run")
+
+        for stream_name in ("stdout", "stderr"):
+            text = compact.pop(stream_name, "")
+
+            if not text:
+                continue
+
+            log_path = logs_dir / f"discopop_{stage}_{stream_name}.log"
+            log_path.write_text(text, encoding="utf-8")
+            compact[f"{stream_name}_log"] = str(log_path)
+
+            if not success:
+                compact[f"{stream_name}_tail"] = self._tail_text(text)
+
+        print()
+        print("[DiscoPoP] Result summary:")
+        print(f"  success:    {success}")
+        print(f"  stage:      {stage}")
+        print(f"  returncode: {compact.get('returncode', 'N/A')}")
+        print(f"  elapsed:    {compact.get('elapsed', 'N/A')}")
+
+        for stream_name in ("stdout", "stderr"):
+            log_key = f"{stream_name}_log"
+            tail_key = f"{stream_name}_tail"
+
+            if log_key in compact:
+                print(f"  {stream_name} log: {compact[log_key]}")
+
+            if compact.get(tail_key):
+                print()
+                print(f"[DiscoPoP] {stream_name} tail (fail):")
+                print(compact[tail_key])
+
+        return compact
 
     def _run_full_discopop_mode(
         self,
@@ -407,15 +475,11 @@ class BenchmarkRunner:
             "Running DiscoPoP..."
         )
 
-        discopop_result = (
-            self.discopop_runner.run(
-                workspace
-            )
-        )
+        discopop_result = self.discopop_runner.run(workspace)
 
-        print(
-            "DiscoPoP result:",
-            discopop_result,
+        discopop_result = self._summarize_discopop_result(
+            result=discopop_result,
+            mode_dir=mode_dir,
         )
 
         if not discopop_result.get(
@@ -528,6 +592,27 @@ class BenchmarkRunner:
         print(
             f"  Used:       {mcp_usage.get('used', False)}"
         )
+
+        if not mcp_usage.get("used", False):
+            return {
+                "mode": "mcp",
+                "success": False,
+                "repository_path": str(workspace),
+                "usage": agent_result["usage"],
+                "latency": agent_result["latency"],
+                "output": agent_result["output"],
+                "mcp_usage": mcp_usage,
+                "invocation_id": agent_result.get(
+                    "invocation_id"
+                ),
+                "reason": (
+                    "MCP mode completed without any observed "
+                    "DiscoPoP MCP tool calls."
+                ),
+                "events_file": agent_result.get(
+                    "events_file"
+                ),
+            }
 
         patch = (
             self.repository_manager.get_diff(
@@ -823,7 +908,7 @@ def main():
     # ------------------------------------------------------------
 
     runner.run_case(
-        case_index=140
+        case_index=89
     )
 
 

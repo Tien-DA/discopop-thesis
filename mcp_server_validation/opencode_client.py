@@ -1,20 +1,159 @@
+import ast
 import json
+import os
+import shlex
+import shutil
 import subprocess
+import sys
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+
+@dataclass(frozen=True)
+class LocalMCPServer:
+    name: str
+    executable: str
+    command_env: str
+    executable_env: str
+    source_entrypoint: Path
+    tool_directory: Path
+
+    def resolve_command(
+        self,
+        workspace: Path,
+    ) -> Optional[list[str]]:
+        configured = os.environ.get(self.command_env)
+        if configured:
+            return shlex.split(configured)
+
+        executable = os.environ.get(self.executable_env)
+        if executable:
+            return [executable]
+
+        executable = shutil.which(self.executable)
+        if executable:
+            return [executable]
+
+        venv_executable = (
+            Path(sys.executable).parent
+            / self.executable
+        )
+        if venv_executable.is_file():
+            return [str(venv_executable)]
+
+        if self.source_entrypoint.is_file():
+            return self._write_source_wrapper(workspace)
+
+        return None
+
+    def discover_tool_names(self) -> set[str]:
+        """
+        Discover MCP tool names from the local server sources without importing
+        the MCP package. This keeps usage accounting in sync with the server.
+        """
+
+        tool_names: set[str] = set()
+
+        if not self.tool_directory.is_dir():
+            return tool_names
+
+        for path in self.tool_directory.glob("*.py"):
+            if path.name.startswith("test_") or path.name in {
+                "__init__.py",
+                "helpers.py",
+            }:
+                continue
+
+            try:
+                tree = ast.parse(
+                    path.read_text(encoding="utf-8"),
+                    filename=str(path),
+                )
+            except (OSError, SyntaxError):
+                continue
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Assign):
+                    continue
+                if not any(
+                    isinstance(target, ast.Name)
+                    and target.id == "TOOL"
+                    for target in node.targets
+                ):
+                    continue
+                if not isinstance(node.value, ast.Call):
+                    continue
+
+                for keyword in node.value.keywords:
+                    if (
+                        keyword.arg == "name"
+                        and isinstance(keyword.value, ast.Constant)
+                        and isinstance(keyword.value.value, str)
+                    ):
+                        tool_names.add(keyword.value.value)
+
+        return tool_names
+
+    def temporary_files(
+        self,
+        workspace: Path,
+    ) -> list[Path]:
+        return [
+            workspace / f".opencode_{self.name}.py",
+        ]
+
+    def _write_source_wrapper(
+        self,
+        workspace: Path,
+    ) -> list[str]:
+        wrapper = self.temporary_files(workspace)[0]
+        package_root = self.source_entrypoint.parents[1]
+        wrapper.write_text(
+            "\n".join(
+                [
+                    "import runpy",
+                    "import sys",
+                    f"sys.path.insert(0, {str(package_root)!r})",
+                    f"server = {str(self.source_entrypoint)!r}",
+                    "sys.argv = [server] + sys.argv[1:]",
+                    "runpy.run_path(server, run_name='__main__')",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return [sys.executable, str(wrapper)]
 
 
 class OpenCodeClient:
     """Client for running OpenCode as a coding agent."""
 
-    DISCOPOP_MCP_COMMAND = (
-        "/home/dinhtienvu/TU_Darmstadt/6.Semester/Thesis/"
-        "discopop-thesis/venv/bin/discopop_mcp_server"
-    )
-
-    def __init__(self, model: str):
+    def __init__(
+        self,
+        model: str,
+        mcp_server: Optional[LocalMCPServer] = None,
+    ):
         self.model = model
+        self.mcp_server = (
+            mcp_server
+            if mcp_server is not None
+            else self._default_discopop_mcp_server()
+        )
+        self.mcp_tool_names = self.mcp_server.discover_tool_names()
+
+    @staticmethod
+    def _default_discopop_mcp_server() -> LocalMCPServer:
+        repo_root = Path(__file__).resolve().parents[1]
+        return LocalMCPServer(
+            name="discopop_mcp_server",
+            executable="discopop_mcp_server",
+            command_env="DISCOPOP_MCP_COMMAND",
+            executable_env="DISCOPOP_MCP_SERVER",
+            source_entrypoint=repo_root / "mcp_server" / "server.py",
+            tool_directory=repo_root / "mcp_server" / "tools",
+        )
 
     def _write_project_config(
         self,
@@ -29,15 +168,24 @@ class OpenCodeClient:
         """
 
         config_path = workspace / "opencode.json"
+        mcp_command = self.mcp_server.resolve_command(
+            workspace
+        )
+
+        if mcp_enabled and mcp_command is None:
+            raise RuntimeError(
+                "MCP mode requested, but the DiscoPoP MCP server could not "
+                "be found. Install discopop_mcp_server, set "
+                f"{self.mcp_server.command_env}, or run the benchmark from "
+                "a checkout that contains mcp_server/server.py."
+            )
 
         config = {
             "$schema": "https://opencode.ai/config.json",
             "mcp": {
-                "discopop_mcp_server": {
+                self.mcp_server.name: {
                     "type": "local",
-                    "command": [
-                        self.DISCOPOP_MCP_COMMAND
-                    ],
+                    "command": mcp_command or [self.mcp_server.executable],
                     "enabled": mcp_enabled,
                 }
             },
@@ -55,8 +203,8 @@ class OpenCodeClient:
 
         return config_path
 
-    @staticmethod
     def _extract_mcp_usage(
+        self,
         raw_events,
     ) -> Dict[str, Any]:
         """
@@ -89,6 +237,7 @@ class OpenCodeClient:
             if (
                 "discopop" in tool_name.lower()
                 or "mcp" in tool_name.lower()
+                or tool_name in self.mcp_tool_names
             ):
                 mcp_calls.append(event)
 
@@ -286,3 +435,9 @@ class OpenCodeClient:
 
             if config_path.exists():
                 config_path.unlink()
+
+            for path in self.mcp_server.temporary_files(
+                workspace
+            ):
+                if path.exists():
+                    path.unlink()

@@ -3,11 +3,11 @@
 # Simple launcher for MCP Benchmark Terminal UI
 
 # Check if we're in the right directory
-if [ ! -f "mcp_benchmark" ]; then
+if [ ! -f "benchmark_runner.py" ]; then
     echo "Error: mcp_benchmark script not found."
     echo "Please run this script from the mcp_server_validation directory."
     exit 1
 fi
 
 # Run the terminal UI
-exec python3 mcp_benchmark "$@"
+exec python3 benchmark_runner.py "$@"
