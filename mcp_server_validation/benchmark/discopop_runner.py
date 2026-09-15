@@ -11,11 +11,16 @@ from discopop_library.ProjectManager.utilities.deriveSettingsFiles import derive
 
 class DiscoPoPRunner:
     """
-    Runs DiscoPoP directly through its Python library.
+    Runs the complete DiscoPoP preprocessing pipeline.
+
+    Pipeline:
+        1. Initialize DiscoPoP settings
+        2. Compile/instrument the project
+        3. Execute the instrumented program
+        4. Run DiscoPoP pattern detection
+        5. Validate the generated profiler artifacts
 
     The MCP protocol is intentionally not used here.
-    This class represents the benchmark-side DiscoPoP
-    preprocessing step.
     """
 
     def __init__(self, timeout: int = 600):
@@ -63,12 +68,13 @@ class DiscoPoPRunner:
         project: Path,
     ) -> Dict[str, Any]:
         """
-        Run the DiscoPoP preprocessing pipeline:
+        Run the complete DiscoPoP preprocessing pipeline:
 
         1. Initialize DiscoPoP settings
         2. Compile/instrument the project
         3. Execute the instrumented program
         4. Run DiscoPoP pattern detection
+        5. Validate required profiler artifacts
         """
 
         self.prepare_project(project)
@@ -105,6 +111,10 @@ class DiscoPoPRunner:
 
         arguments = self._create_arguments(project)
 
+        # ---------------------------------------------------------
+        # 1. COMPILE / INSTRUMENTATION
+        # ---------------------------------------------------------
+
         print()
         print("[DiscoPoP] Starting instrumentation/build...")
         print("[DiscoPoP] This may take several minutes...")
@@ -129,10 +139,18 @@ class DiscoPoPRunner:
         )
 
         if compile_result[0] != 0:
+            print(
+                "[DiscoPoP] Instrumentation/build failed."
+            )
+
             return self._create_failure_result(
                 stage="compile",
                 result=compile_result,
             )
+
+        # ---------------------------------------------------------
+        # 2. EXECUTE INSTRUMENTED PROGRAM
+        # ---------------------------------------------------------
 
         print()
         print("[DiscoPoP] Starting profiling execution...")
@@ -157,39 +175,94 @@ class DiscoPoPRunner:
             f"[DiscoPoP] Elapsed: {execute_result[1]:.2f}s"
         )
 
-        profiler = project / ".discopop" / "profiler"
-
-        data_xml = profiler / "Data.xml"
-        dynamic_dependencies = profiler / "dynamic_dependencies.txt"
-
         if execute_result[0] != 0:
             print(
-                f"[DiscoPoP] Execution returned {execute_result[0]}."
+                "[DiscoPoP] Profiling execution failed."
             )
 
-            if data_xml.exists() and dynamic_dependencies.exists():
-                print(
-                    "[DiscoPoP] WARNING: instrumented program failed, "
-                    "but required profiler output exists."
-                )
-                print("[DiscoPoP] Continuing with pattern detection...")
-            else:
-                return self._create_failure_result(
-                    stage="execute",
-                    result=execute_result,
-                )
+            return self._create_failure_result(
+                stage="execute",
+                result=execute_result,
+            )
+
+        # ---------------------------------------------------------
+        # 3. VALIDATE PROFILER OUTPUT
+        # ---------------------------------------------------------
+
+        profiler = (
+            project
+            / ".discopop"
+            / "profiler"
+        )
+
+        data_xml = profiler / "Data.xml"
+        dynamic_dependencies = (
+            profiler / "dynamic_dependencies.txt"
+        )
+
+        if not data_xml.exists():
+            return {
+                "success": False,
+                "stage": "profiling",
+                "reason": "Data.xml was not generated.",
+                "profiler": str(profiler),
+            }
+
+        if not dynamic_dependencies.exists():
+            return {
+                "success": False,
+                "stage": "profiling",
+                "reason": (
+                    "dynamic_dependencies.txt "
+                    "was not generated."
+                ),
+                "profiler": str(profiler),
+            }
+
+        print()
+        print(
+            "[DiscoPoP] Required profiling artifacts "
+            "were generated."
+        )
+
+        # ---------------------------------------------------------
+        # 4. PATTERN DETECTION
+        # ---------------------------------------------------------
 
         print()
         print("[DiscoPoP] Starting pattern detection...")
 
-        explorer_result = self._run_pattern_detection(project)
+        explorer_result = self._run_pattern_detection(
+            project
+        )
 
-        profiler = project / ".discopop" / "profiler"
+        print()
+        print(
+            f"[DiscoPoP] Pattern detection finished "
+            f"with return code {explorer_result.returncode}"
+        )
 
-        data_xml = profiler / "Data.xml"
-        dynamic_dependencies = profiler / "dynamic_dependencies.txt"
-        static_dependencies = profiler / "static_dependencies.txt"
-        ast_dump = profiler / "ast_dump.json"
+        if explorer_result.returncode != 0:
+            return {
+                "success": False,
+                "stage": "pattern_detection",
+                "returncode": explorer_result.returncode,
+                "stdout": explorer_result.stdout,
+                "stderr": explorer_result.stderr,
+                "profiler": str(profiler),
+            }
+
+        # ---------------------------------------------------------
+        # 5. VALIDATE FINAL DISCOPOP ARTIFACTS
+        # ---------------------------------------------------------
+
+        static_dependencies = (
+            profiler / "static_dependencies.txt"
+        )
+
+        ast_dump = (
+            profiler / "ast_dump.json"
+        )
 
         required_artifacts = [
             data_xml,
@@ -201,7 +274,7 @@ class DiscoPoPRunner:
         missing_artifacts = [
             str(path)
             for path in required_artifacts
-            if not path.exists()
+            if not path.is_file()
         ]
 
         if missing_artifacts:
@@ -211,28 +284,27 @@ class DiscoPoPRunner:
                 "returncode": explorer_result.returncode,
                 "stdout": explorer_result.stdout,
                 "stderr": explorer_result.stderr,
+                "profiler": str(profiler),
                 "missing_artifacts": missing_artifacts,
             }
 
-        if explorer_result.returncode != 0:
-            print(
-                "[DiscoPoP] Pattern detection returned a non-zero "
-                "code, but required profiler artifacts exist."
-            )
-            print(
-                "[DiscoPoP] Continuing because the benchmark only "
-                "requires the analysis artifacts."
-            )
+        print()
+        print(
+            "[DiscoPoP] Complete analysis successfully generated."
+        )
 
         return {
             "success": True,
+            "analysis_available": True,
             "stage": "completed",
             "profiler": str(profiler),
-            "data_xml": data_xml.exists(),
-            "dynamic_dependencies": dynamic_dependencies.exists(),
-            "static_dependencies": static_dependencies.exists(),
-            "ast_dump": ast_dump.exists(),
-            "pattern_detection_returncode": explorer_result.returncode,
+            "data_xml": True,
+            "dynamic_dependencies": True,
+            "static_dependencies": True,
+            "ast_dump": True,
+            "pattern_detection_returncode": (
+                explorer_result.returncode
+            ),
         }
 
     def _create_arguments(
@@ -307,6 +379,7 @@ class DiscoPoPRunner:
 
         return {
             "success": False,
+            "analysis_available": False,
             "stage": stage,
             "returncode": result[0],
             "elapsed": result[1],

@@ -19,9 +19,9 @@ from benchmark.discopop_runner import DiscoPoPRunner
 class BenchmarkRunner:
 
     MODES = (
-        "direct",
+        #"direct",
         "full_discopop",
-        "mcp",
+        #"mcp",
     )
 
     def __init__(self, llm_client):
@@ -409,6 +409,10 @@ class BenchmarkRunner:
         print()
         print("[DiscoPoP] Result summary:")
         print(f"  success:    {success}")
+        print(
+            f"  analysis_available: "
+            f"{compact.get('analysis_available', False)}"
+        )
         print(f"  stage:      {stage}")
         print(f"  returncode: {compact.get('returncode', 'N/A')}")
         print(f"  elapsed:    {compact.get('elapsed', 'N/A')}")
@@ -483,15 +487,15 @@ class BenchmarkRunner:
         )
 
         if not discopop_result.get(
-            "success",
-            False,
+                "analysis_available",
+                False,
         ):
-
             return {
                 "mode": "full_discopop",
                 "success": False,
                 "build_system": build_system,
                 "discopop": discopop_result,
+                "reason": "DiscoPoP profiler output is not available.",
             }
 
         discopop_path = workspace / ".discopop"
@@ -908,7 +912,7 @@ def main():
     # ------------------------------------------------------------
 
     runner.run_case(
-        case_index=89
+        case_index=135
     )
 
 
