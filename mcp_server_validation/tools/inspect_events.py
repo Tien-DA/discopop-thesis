@@ -85,7 +85,7 @@ def print_separator():
 
 def print_step(step_no, texts, tools):
     print()
-    print(f"╭─ STEP {step_no:02d} " + "─" * 67)
+    print(f" STEP {step_no:02d} ")
 
     for text in texts:
         text = text.strip()
@@ -93,41 +93,34 @@ def print_step(step_no, texts, tools):
         if not text:
             continue
 
-        print("│")
-        print("│ 🤖 QWEN")
-        print("│")
+        print("-----QWEN-----")
 
         for line in clean_text(text, max_lines=30, max_chars=2500).splitlines():
-            print(f"│ {line}")
+            print(f"{line}")
 
     for tool in tools:
         name = tool["name"]
         input_data = tool["input"]
         output = tool["output"]
 
-        print("│")
-        print("│ 🔧 TOOL")
-        print(f"│ {tool_label(name)}")
+        print("-----TOOL-----")
+        print(f" {tool_label(name)}")
 
         if input_data:
-            print("│")
-            print("│ Input:")
+            print("-----Input-----")
             formatted = format_value(input_data, 1200)
 
             for line in formatted.splitlines():
-                print(f"│   {line}")
+                print(f" {line}")
 
         if output is not None:
-            print("│")
-            print("│ 📥 RESULT")
+            print("-----RESULT-----")
 
             formatted = format_value(output, 3000)
 
             for line in formatted.splitlines():
-                print(f"│ {line}")
-
-    print("│")
-    print("╰" + "─" * 77)
+                print(f"{line}")
+    print("─" * 77)
 
 
 def parse_events(path):

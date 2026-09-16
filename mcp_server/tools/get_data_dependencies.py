@@ -41,7 +41,8 @@ TOOL = Tool(
         "filter combinations within the same project incur no additional I/O. "
         "Use the include_* flags and var_name to request only what is needed, or narrow the "
         "start_line/end_line range to a smaller code region — both reduce the number of returned "
-        "dependencies and therefore conserve tokens."
+        "dependencies and therefore conserve tokens.\n\n"
+        "OPTIMIZATION: Added support for summary results and content filtering to reduce token usage."
     ),
     inputSchema={
         "type": "object",
@@ -95,6 +96,16 @@ TOOL = Tool(
                     "outside the region."
                 ),
             },
+            "max_dependencies": {
+                "type": "integer",
+                "description": "Maximum number of dependencies to return (default: 50).",
+                "default": 50
+            },
+            "summary_only": {
+                "type": "boolean",
+                "description": "Return only a summary instead of full dependency details (default: false).",
+                "default": False
+            }
         },
         "required": ["project_path", "file_path", "start_line", "end_line"],
         "additionalProperties": False,
@@ -120,6 +131,8 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
         include_outgoing: bool = bool(arguments.get("include_outgoing", True))
         include_intra_region: bool = bool(arguments.get("include_intra_region", True))
         var_name_filter: Optional[str] = arguments.get("var_name", None)
+        max_deps: int = int(arguments.get("max_dependencies", 50))
+        summary_only: bool = bool(arguments.get("summary_only", False))
 
         # Enforce var_name aliasing constraint
         incoming_excluded_by_var_name = False
@@ -165,6 +178,7 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
         seen: set[tuple[Any, Any, Any, Any]] = set()
 
         pet = detection_result.pet
+        dep_count = 0
         for _src_node, _tgt_node, dep in pet.g.edges(data="data"):
             if dep.etype != EdgeType.DATA:
                 continue
@@ -199,32 +213,70 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
             if var_name_filter is not None and dep.var_name != var_name_filter:
                 continue
 
+            # Apply limit to prevent excessive token usage
+            if dep_count >= max_deps:
+                break
+
             dedup_key = (dep.source_line, dep.sink_line, dep.var_name, dep.dtype)
             if dedup_key in seen:
                 continue
             seen.add(dedup_key)
 
-            src_file_str = str(file_mapping[src_file_id]) if src_file_id in file_mapping else None
-            snk_file_str = str(file_mapping[snk_file_id]) if snk_file_id in file_mapping else None
+            # For summary mode, only store counts and types
+            if summary_only:
+                # Just increment counters for summary
+                pass
+            else:
+                # Store full dependency details
+                src_file_str = str(file_mapping[src_file_id]) if src_file_id in file_mapping else None
+                snk_file_str = str(file_mapping[snk_file_id]) if snk_file_id in file_mapping else None
 
-            entry: dict[str, Any] = {
-                "dep_type": dep.dtype.name,
-                "var_name": dep.var_name,
-                "source": {"file": src_file_str, "line": src_line},
-                "sink": {"file": snk_file_str, "line": snk_line},
-            }
-            buckets[category].append(entry)
+                entry: dict[str, Any] = {
+                    "dep_type": dep.dtype.name,
+                    "var_name": dep.var_name,
+                    "source": {"file": src_file_str, "line": src_line},
+                    "sink": {"file": snk_file_str, "line": snk_line},
+                }
+                buckets[category].append(entry)
+            
+            dep_count += 1
 
         total = sum(len(v) for v in buckets.values())
-        result: dict[str, Any] = {
-            "status": "success",
-            "project_path": project_path,
-            "file_path": file_path,
-            "start_line": start_line,
-            "end_line": end_line,
-            "num_dependencies": total,
-            "dependencies": buckets,
-        }
+        
+        # Generate summary if requested
+        if summary_only:
+            result: dict[str, Any] = {
+                "status": "success",
+                "project_path": project_path,
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "num_dependencies": total,
+                "dependency_summary": {
+                    "incoming": len(buckets["incoming"]),
+                    "outgoing": len(buckets["outgoing"]),
+                    "intra_region": len(buckets["intra_region"]),
+                    "dependency_types": {
+                        "RAW": sum(1 for d in buckets["incoming"] + buckets["outgoing"] + buckets["intra_region"] 
+                                  if d.get("dep_type") == "RAW"),
+                        "WAR": sum(1 for d in buckets["incoming"] + buckets["outgoing"] + buckets["intra_region"] 
+                                  if d.get("dep_type") == "WAR"),
+                        "WAW": sum(1 for d in buckets["incoming"] + buckets["outgoing"] + buckets["intra_region"] 
+                                  if d.get("dep_type") == "WAW"),
+                    }
+                }
+            }
+        else:
+            result: dict[str, Any] = {
+                "status": "success",
+                "project_path": project_path,
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "num_dependencies": total,
+                "dependencies": buckets,
+            }
+            
         if incoming_excluded_by_var_name:
             result["incoming_excluded_due_to_var_name_filter"] = True
 
