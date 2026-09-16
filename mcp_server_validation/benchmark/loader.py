@@ -158,5 +158,6 @@ class BenchmarkLoader:
             task=data["task"],
             build_command=data["build_command"],
             test_command=data["test_command"],
+            profiling_command=data.get("profiling_command"),
             validator=data.get("validator"),
         )

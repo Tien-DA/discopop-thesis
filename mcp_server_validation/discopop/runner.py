@@ -222,19 +222,11 @@ class DiscoPoPRunner:
         case: BenchmarkCase,
     ) -> None:
 
-        configs = (
-            project
-            / ".discopop"
-            / "project"
-            / "configs"
-        )
+        configs = (project/ ".discopop"/ "project"/ "configs")
 
         default = configs / "default"
 
-        default.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        default.mkdir(parents=True,exist_ok=True)
 
         seq_settings = configs / "seq_settings.json"
 
@@ -260,9 +252,15 @@ class DiscoPoPRunner:
             case.build_command,
         )
 
+        if not case.profiling_command:
+            raise ValueError(
+                f"No profiling_command configured for benchmark case "
+                f"{case.repository}/{case.name}"
+            )
+
         self._write_execute_script(
             default / "execute.sh",
-            case.test_command,
+            case.profiling_command,
         )
 
     @staticmethod

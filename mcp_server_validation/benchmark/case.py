@@ -12,4 +12,5 @@ class BenchmarkCase:
     task: str
     build_command: str
     test_command: str
+    profiling_command: str | None
     validator: Optional[str] = None

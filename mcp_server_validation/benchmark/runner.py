@@ -32,9 +32,10 @@ class BenchmarkRunner:
             MCP: OFF
 
         MCP
-            DiscoPoP is executed before OpenCode
-            DiscoPoP MCP server is enabled
-            OpenCode can call DiscoPoP MCP tools
+            DiscoPoP is not executed by the benchmark runner.
+            DiscoPoP MCP server is enabled.
+            OpenCode is responsible for initializing, building,
+            profiling and querying DiscoPoP through MCP.
     """
 
     MODES = (
@@ -76,20 +77,30 @@ class BenchmarkRunner:
     # PUBLIC API
     # ==================================================================
 
-    def _case_output_root(self, case: BenchmarkCase) -> Path:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def _case_output_root(
+        self,
+        case: BenchmarkCase,
+    ) -> Path:
+        """
+        Create a unique output directory for one benchmark case.
+        """
+
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
 
         return (
-                self.output_root
-                / f"{timestamp}_{case.repository}_{case.name}"
+            self.output_root
+            / f"{timestamp}_{case.repository}_{case.name}"
         )
 
     def run_case(
-            self,
-            case: BenchmarkCase,
+        self,
+        case: BenchmarkCase,
     ) -> dict[str, Any]:
 
         case_output = self._case_output_root(case)
+
         case_output.mkdir(
             parents=True,
             exist_ok=True,
@@ -128,6 +139,8 @@ class BenchmarkRunner:
                 print(exc)
 
                 results[mode] = {
+                    "mode": mode,
+                    "case": case.name,
                     "success": False,
                     "status": "runner_failed",
                     "error": str(exc),
@@ -137,10 +150,7 @@ class BenchmarkRunner:
         # Write complete result JSON
         # ==============================================================
 
-        result_file = (
-                case_output
-                / "result.json"
-        )
+        result_file = case_output / "result.json"
 
         self._write_json(
             result_file,
@@ -149,7 +159,7 @@ class BenchmarkRunner:
 
         print()
         print(
-            f"[Benchmark] Results written to: "
+            "[Benchmark] Results written to: "
             f"{result_file}"
         )
 
@@ -162,7 +172,6 @@ class BenchmarkRunner:
         print("BENCHMARK RESULTS")
         print("=" * 100)
 
-        # Table header
         print(
             f"{'Mode':<20}"
             f"{'Input token':>15}"
@@ -171,10 +180,6 @@ class BenchmarkRunner:
             f"{'Accuracy':>12}"
             f"{'Latency':>12}"
         )
-
-        # --------------------------------------------------------------
-        # Print one row for each benchmark mode
-        # --------------------------------------------------------------
 
         for mode in self.MODES:
 
@@ -327,10 +332,7 @@ class BenchmarkRunner:
 
         discopop_result = None
 
-        if mode in {
-            "full_discopop",
-            "mcp",
-        }:
+        if mode == "full_discopop":
 
             discopop_result = self.discopop.run(
                 isolated_case
@@ -342,8 +344,8 @@ class BenchmarkRunner:
             )
 
             if not discopop_result.get(
-                "analysis_available",
-                False,
+                    "analysis_available",
+                    False,
             ):
                 print()
                 print(
@@ -367,6 +369,13 @@ class BenchmarkRunner:
                     "discopop": discopop_result,
                 }
 
+        elif mode == "mcp":
+
+            print()
+            print(
+                "[Benchmark] DiscoPoP will be initialized "
+                "and executed through MCP by OpenCode."
+            )
         # --------------------------------------------------------------
         # 3. Build prompt
         # --------------------------------------------------------------
@@ -406,7 +415,7 @@ class BenchmarkRunner:
 
         print()
         print(
-            f"[Benchmark] MCP enabled: "
+            "[Benchmark] MCP enabled: "
             f"{mcp_enabled}"
         )
 
@@ -551,13 +560,6 @@ class BenchmarkRunner:
                     0,
                 ),
 
-                # Example:
-                #
-                # {
-                #     "get_project_summary": 1,
-                #     "get_data_dependencies": 3
-                # }
-                #
                 "tools": mcp_usage.get(
                     "tools",
                     {},
@@ -612,7 +614,7 @@ class BenchmarkRunner:
 
         print()
         print(
-            f"[Benchmark] {mode}: "
+            "[Benchmark] {mode}: "
             f"{result['status']}"
         )
 
@@ -724,8 +726,8 @@ class BenchmarkRunner:
 
     @staticmethod
     def _case_with_workspace(
-            case: BenchmarkCase,
-            workspace: Path,
+        case: BenchmarkCase,
+        workspace: Path,
     ) -> BenchmarkCase:
 
         return BenchmarkCase(
@@ -736,6 +738,7 @@ class BenchmarkRunner:
             task=case.task,
             build_command=case.build_command,
             test_command=case.test_command,
+            profiling_command=case.profiling_command,
             validator=case.validator,
         )
 
