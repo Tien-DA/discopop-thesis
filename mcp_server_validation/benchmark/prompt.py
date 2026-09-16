@@ -128,25 +128,34 @@ The DiscoPoP MCP server is not available in this condition.
         return common + """
 BENCHMARK CONDITION:
 You are working in the MCP condition.
-DiscoPoP program-analysis information is available through the DiscoPoP MCP server.
+DiscoPoP is available through the DiscoPoP MCP server.
 
 MANDATORY MCP USAGE:
-Before modifying any source file, you MUST use at least one DiscoPoP MCP tool to inspect the repository or the relevant code.
-You should first use the DiscoPoP MCP tools to obtain program-analysis information that is relevant to the task.
-For example, depending on the task, useful tools may include:
+Before modifying any source file, you MUST use the DiscoPoP MCP tools to initialize, configure, and run the relevant DiscoPoP analysis for the repository.
+DiscoPoP analysis has NOT been prepared in advance by the benchmark runner. You are responsible for performing the necessary DiscoPoP workflow through MCP.
+When appropriate, use the available DiscoPoP MCP tools to:
+    - initialize the DiscoPoP project
+    - configure the compilation process
+    - create an execution configuration
+    - instrument the project
+    - run/gather the DiscoPoP analysis
+    - query the resulting program-analysis information
+After the analysis has been generated, use relevant DiscoPoP MCP tools to investigate the task. Depending on the task, useful tools may include:
     - get_project_summary
     - get_dependency_summary
     - get_data_dependencies
     - analyze_loop_dependencies
     - get_hardware_constraints
-After obtaining the DiscoPoP information, combine it with your inspection of the repository source code.
-You MUST actually call the MCP tools. Merely having the MCP server available is not sufficient.
-Do not modify source files before making at least one DiscoPoP MCP tool call.
-After using the MCP information, continue normally:
+    - get_parallelization_patches
+    - other available DiscoPoP analysis tools
+You MUST actually call the DiscoPoP MCP tools. Merely having the MCP server available is not sufficient.
+Do not modify source files before performing the necessary DiscoPoP analysis through MCP.
+After obtaining relevant DiscoPoP information, combine it with your inspection of the repository source code and continue normally
     - inspect the relevant source code
     - identify the problem
     - implement the fix
     - build and test the project
     - verify the result
-The DiscoPoP analysis files themselves are not intended to be inspected directly in this condition.
+Do not assume that DiscoPoP analysis already exists.
+Do not inspect DiscoPoP analysis files directly. Use the DiscoPoP MCP tools to access the analysis information.
 """

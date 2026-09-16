@@ -614,7 +614,7 @@ class BenchmarkRunner:
 
         print()
         print(
-            "[Benchmark] {mode}: "
+            f"[Benchmark] {mode}: "
             f"{result['status']}"
         )
 
@@ -632,26 +632,6 @@ class BenchmarkRunner:
             f"[Benchmark] Latency: "
             f"{result['latency_seconds']:.3f}s"
         )
-
-        if mcp_enabled:
-
-            print(
-                f"[Benchmark] MCP calls: "
-                f"{result['mcp']['tool_calls']}"
-            )
-
-            tools = result["mcp"]["tools"]
-
-            if tools:
-                print(
-                    "[Benchmark] MCP tools:"
-                )
-
-                for tool_name, count in tools.items():
-                    print(
-                        f"  - {tool_name}: {count}"
-                    )
-
         return result
 
     # ==================================================================
