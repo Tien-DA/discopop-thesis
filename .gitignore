@@ -175,4 +175,5 @@ _deps
 
 **/.discopop
 **/prog
-benchmark/mcp_token_benchmark/benchmark-results/
+mcp_server_validation/.workspaces
+mcp_server_validation/runs

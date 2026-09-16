@@ -1,19 +1,15 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Optional
 
 
-@dataclass
+@dataclass(frozen=True)
 class BenchmarkCase:
-    instance_id: str
-    task_type: str
-
-    repo: str
-    base_commit: str
-
-    problem_statement: str
-
-    evaluator: str
-
-    language: Optional[str] = None
-
-    metadata: Optional[Dict[str, Any]] = None
+    index: int
+    repository: str
+    name: str
+    workspace: Path
+    task: str
+    build_command: str
+    test_command: str
+    validator: Optional[str] = None
