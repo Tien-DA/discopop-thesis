@@ -33,6 +33,13 @@ class AutotunerArguments(GeneralArguments):
     hotspot_types: str = ""
     algorithm: int = 0
     search_space: Optional[str] = None
+    # Build every candidate but run none of them: the search then answers "does this
+    # configuration compile?" instead of "how fast is it?". Nothing is measured, so no
+    # candidate can be ranked -- the mode exists for callers that only care about
+    # compilability, above all discopop_patch_repair, which needs the compiler's
+    # diagnostics for a single suggestion and would otherwise pay a full program run
+    # per invocation.
+    compile_only: bool = False
     # Tuning knobs of the hotspot-guided region descent (-A 6). Defaults are chosen so
     # the algorithm can be run without any of them.
     noise_threshold: float = 0.02

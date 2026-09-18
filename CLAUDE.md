@@ -51,6 +51,11 @@ This document contains critical information about working with this codebase. Fo
 ### Python end-to-end tests
 - to execute the python end-to-end tests, use 'venv/bin/python -m unittest -v -k "*.end_to_end.*"'
 
+### Python unit tests (discopop_library)
+- `discopop_library` (`library/discopop_library`) has pytest-based unit tests colocated with the source as `test_*.py` files
+- to run them, from the repository root: `venv/bin/python -m pytest library/discopop_library`
+- run them separately from the explorer's tests: both roots in one pytest run abort with an import file mismatch
+
 ### Python unit tests (discopop_explorer)
 - the `discopop_explorer` package (`explorer/discopop_explorer`) has pytest-based unit tests colocated with the source as `test_*.py` files (e.g. `explorer/discopop_explorer/utilities/ASTUtils/test_ASTQueries.py`, `explorer/discopop_explorer/test_utils.py`, `explorer/discopop_explorer/pattern_detectors/test_do_all_detector.py`)
 - install prerequisites via `venv/bin/pip install pytest pytest-cov`

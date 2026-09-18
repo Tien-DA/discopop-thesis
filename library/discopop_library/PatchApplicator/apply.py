@@ -83,8 +83,19 @@ def __apply_file_patches(
         patch_file_path = os.path.join(patch_generator_dir, suggestion_id, patch_file_name)
         # save original version to calculate diff to calculate line mapping
         shutil.copyfile(patch_target.as_posix(), patch_target.as_posix() + ".line_mapping_tmp")
+        # --batch: never ask. Without it patch turns interactive on a reversed or
+        # already-applied patch ("Assume -R? [n]", "Apply anyway? [n]"), and with no
+        # terminal attached -- under the autotuner, the GUI, the MCP server -- the prompt
+        # is answered by EOF.
+        # --forward: and never guess. --batch ALONE answers that prompt with "Assuming
+        # -R" and silently *reverses* the patch, returning 0: applying an
+        # already-applied suggestion would strip the parallelization back out and report
+        # success, and the runtime measured afterwards would be of unmodified code.
+        # --forward makes patch skip such a patch and fail loudly instead.
         command = [
             "patch",
+            "--batch",
+            "--forward",
             patch_target.as_posix(),
             patch_file_path,
         ]
@@ -94,6 +105,7 @@ def __apply_file_patches(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
             universal_newlines=True,
             cwd=os.getcwd(),
         )
@@ -127,6 +139,8 @@ def __apply_file_patches(
             shutil.copyfile(patch_target.as_posix(), patch_target.as_posix() + ".line_mapping_tmp")
             command = [
                 "patch",
+                "--batch",
+                "--forward",
                 "-R",
                 patch_target.as_posix(),
                 patch_file_path,
@@ -137,6 +151,7 @@ def __apply_file_patches(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 universal_newlines=True,
                 cwd=os.getcwd(),
             )

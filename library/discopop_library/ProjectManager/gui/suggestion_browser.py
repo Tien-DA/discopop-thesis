@@ -15,6 +15,7 @@ from discopop_library.ProjectManager.gui import widgets
 from discopop_library.ProjectManager.gui.widgets import (
     heading_label,
     caption_label,
+    apply_diff_highlighting,
     create_code_view,
     icon_button,
 )
@@ -270,20 +271,7 @@ class SuggestionBrowserDialog:
         self.save_button.config(text="Save File", state=tk.NORMAL)
 
     def _apply_diff_highlighting(self) -> None:
-        for tag in ("diff_add", "diff_remove", "diff_header", "diff_hunk"):
-            self.editor_text.tag_remove(tag, "1.0", tk.END)
-        content = self.editor_text.get("1.0", tk.END)
-        for i, line in enumerate(content.split("\n"), start=1):
-            start = f"{i}.0"
-            end = f"{i}.end"
-            if line.startswith("+++") or line.startswith("---"):
-                self.editor_text.tag_add("diff_header", start, end)
-            elif line.startswith("+"):
-                self.editor_text.tag_add("diff_add", start, end)
-            elif line.startswith("-"):
-                self.editor_text.tag_add("diff_remove", start, end)
-            elif line.startswith("@@"):
-                self.editor_text.tag_add("diff_hunk", start, end)
+        apply_diff_highlighting(self.editor_text)
 
     def _on_text_modified(self, event: Any) -> None:
         if self._resetting_modified:

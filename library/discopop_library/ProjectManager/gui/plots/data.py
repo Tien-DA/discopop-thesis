@@ -232,27 +232,31 @@ def _decode_leading_event(text: str) -> Tuple[Optional[Dict[str, Any]], str]:
     return obj, text[offset + end :]
 
 
-def split_progress_events(line: str) -> Tuple[List[Dict[str, Any]], str]:
-    """Extract every progress event contained in one line of raw autotuner output.
+def split_progress_events(line: str, prefix: str = PROGRESS_PREFIX) -> Tuple[List[Dict[str, Any]], str]:
+    """Extract every progress event contained in one line of raw tool output.
 
     A ``@@AT_PROGRESS`` payload does not necessarily start at a line boundary: the GUI
-    reads the autotuner's stdout and stderr merged into a single stream, and a progress
+    reads the tool's stdout and stderr merged into a single stream, and a progress
     bar redrawing itself with a carriage return leaves its bar text as an unterminated
     line, to which the next event is then appended (``"42%|##  |...@@AT_PROGRESS {...}"``).
     Events are therefore searched for anywhere in the line; the remaining text is
     returned separately so it can still be echoed to the console.
+
+    ``prefix`` selects the channel: the autotuner's by default, and
+    ``@@PR_PROGRESS`` for discopop_patch_repair, which emits the same shape of events
+    over the same stream.
     """
-    if PROGRESS_PREFIX not in line:
+    if prefix not in line:
         return [], line
     events: List[Dict[str, Any]] = []
     residual: List[str] = []
-    segments = line.split(PROGRESS_PREFIX)
+    segments = line.split(prefix)
     residual.append(segments[0])
     for segment in segments[1:]:
         event, rest = _decode_leading_event(segment)
         if event is None:
             # not an event after all (malformed or non-object payload): keep as output
-            residual.append(PROGRESS_PREFIX + segment)
+            residual.append(prefix + segment)
         else:
             events.append(event)
             residual.append(rest)

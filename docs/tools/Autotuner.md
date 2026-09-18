@@ -2,7 +2,7 @@
 layout: default
 title: Empirical autotuner
 parent: Tools
-nav_order: 7
+nav_order: 8
 ---
 
 # DiscoPoP Empirical Autotuner
@@ -37,6 +37,11 @@ This algorithm spends its measurements on the code regions that dominate the mea
 `--max-measurements` caps the number of compile-and-execute cycles. Note that a search stopped by that cap, by the internal time limit or by `CTRL+C` is no longer reproducible, and the tuner says so in its log.
 
 For meaningful scaling information the hotspot detection should be run for at least two input sizes. With a single run the scaling ratio is constant, the hotspot classification degenerates to a single threshold on the average runtime, and the ranking reduces to plain descending runtime order. The tuner warns when it detects this.
+
+## Compile-only runs
+`--compile-only` builds every candidate and executes none of them, so a run answers "does this configuration compile?" instead of "how fast is it?". Nothing is measured, so no candidate is ranked, no speedup is reported and `results.json` is not written -- a configuration that was only ever compiled must never be named as the tuner's selection. The outcome is written to `compile_results.json` instead, which states separately whether the *reference* configuration built: when it did not, no candidate's failure says anything about its own patches.
+
+This is what [patch repair](Patch_repair.md) uses to find the suggestions whose patches do not build, and to verify a repair, without paying a full program run per check.
 
 ## Required input
 - `Parallel patterns` in the form of a `JSON` file, created by the [Explorer](Explorer.md)

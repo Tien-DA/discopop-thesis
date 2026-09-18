@@ -17,7 +17,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, Tuple
 
 import pytest
 
@@ -175,3 +175,42 @@ def test_no_suggestions_requested_is_not_a_failure() -> None:
     assert not result.failure
     assert not result.nothing_in_code
     assert result.retval == 0
+
+
+def test_applying_an_already_applied_patch_fails_instead_of_reversing_it(tmp_path: Any) -> None:
+    """patch(1) must neither ask a question nor guess an answer.
+
+    On a reversed or already-applied patch it prompts ("Assume -R? [n]", "Apply
+    anyway? [n]"). The applicator runs under the autotuner, the GUI and the MCP server,
+    where no terminal is attached, so the prompt is answered by EOF.
+
+    --batch alone is not the fix: it answers that prompt with "Assuming -R" and
+    *reverses* the patch, returning 0. Applying an already-applied suggestion would then
+    strip the parallelization back out of the code and report success, and every runtime
+    measured afterwards would be of unmodified code presented as parallel. --forward
+    makes patch skip it and fail, which is the only honest outcome.
+    """
+    source = tmp_path / "main.c"
+    source.write_text("int main() {\n  int x = 0;\n  return x;\n}\n")
+    patch_file = tmp_path / "0.patch"
+    # a patch with a removal: an add-only patch simply applies twice
+    patch_file.write_text(
+        "--- a/main.c\n+++ b/main.c\n@@ -1,4 +1,4 @@\n int main() {\n-  int x = 0;\n+  int x = 42;\n   return x;\n }\n"
+    )
+
+    def apply_once() -> int:
+        return subprocess.run(
+            ["patch", "--batch", "--forward", source.as_posix(), patch_file.as_posix()],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            timeout=15,
+        ).returncode
+
+    assert apply_once() == 0
+    assert "int x = 42;" in source.read_text()
+
+    # the second application is the case that used to prompt
+    assert apply_once() != 0
+    # and, crucially, the parallelization-equivalent change is still in the file
+    assert "int x = 42;" in source.read_text()

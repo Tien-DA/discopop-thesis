@@ -42,6 +42,7 @@ from discopop_library.ProjectManager.gui.mixins.wizard_launcher import WizardLau
 from discopop_library.ProjectManager.gui.mixins.explorer_integration import ExplorerIntegrationMixin
 from discopop_library.ProjectManager.gui.mixins.hotspot_panel import HotspotPanelMixin
 from discopop_library.ProjectManager.gui.mixins.autotuning_panel import AutotuningPanelMixin
+from discopop_library.ProjectManager.gui.mixins.patch_repair_panel import PatchRepairPanelMixin
 from discopop_library.ProjectManager.gui.widgets import CATPPUCCIN_CYAN
 
 
@@ -58,6 +59,7 @@ class ConfigManagerApp(  # type: ignore
     WizardLauncherMixin,
     ExplorerIntegrationMixin,
     HotspotPanelMixin,
+    PatchRepairPanelMixin,
     AutotuningPanelMixin,
     tk.Tk,
 ):
@@ -167,6 +169,14 @@ class ConfigManagerApp(  # type: ignore
         self.right_tabs.add(pattern_detection_frame, text="Pattern Detection")
         self.pattern_detection_tab_index = self.right_tabs.index(pattern_detection_frame)
         self._build_pattern_detection_panel(pattern_detection_frame)
+
+        # Patch Repair tab (between Pattern Detection and Autotuning: the patches exist
+        # by now, and a suggestion that does not build is one the tuner can only ever
+        # record as a failure)
+        patch_repair_frame = ttk.Frame(self.right_tabs)
+        self.right_tabs.add(patch_repair_frame, text="Patch Repair")
+        self.patch_repair_tab_index = self.right_tabs.index(patch_repair_frame)
+        self._build_patch_repair_panel(patch_repair_frame)
 
         # Autotuning tab
         autotuning_frame = ttk.Frame(self.right_tabs)

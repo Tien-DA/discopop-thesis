@@ -27,6 +27,10 @@ class ExecutionResult(object):
     # timeout -- has to be expressed in wall clock terms, since a reported time
     # covers only part of the run.
     wall_clock_runtime: float
+    # True when the configuration was built but deliberately not run (--compile-only).
+    # ``runtime`` is then 0.0 and carries no information: it is not a fast run, it is
+    # no run at all. Consumers that report or rank runtimes must check this first.
+    compiled_only: bool
 
     def __init__(
         self,
@@ -37,6 +41,7 @@ class ExecutionResult(object):
         application_failed: bool = False,
         failed_suggestions: Optional[List[int]] = None,
         wall_clock_runtime: Optional[float] = None,
+        compiled_only: bool = False,
     ):
         self.runtime = runtime
         # defaults to runtime, which is exactly right when no execution time was
@@ -47,8 +52,11 @@ class ExecutionResult(object):
         self.thread_sanitizer = thread_sanitizer
         self.application_failed = application_failed
         self.failed_suggestions = [] if failed_suggestions is None else failed_suggestions
+        self.compiled_only = compiled_only
 
     def __str__(self) -> str:
+        if self.compiled_only:
+            return "compiled only, not executed. code: " + str(self.return_code)
         res = (
             ""
             + "time: "

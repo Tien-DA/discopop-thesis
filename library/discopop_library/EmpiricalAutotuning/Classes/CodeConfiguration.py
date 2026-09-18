@@ -62,7 +62,19 @@ class CodeConfiguration(object):
     ) -> None:
         if self.record_failed_application():
             return
-        compilation_successful = self.compile_only(arguments, timeout, thread_count, is_initial)
+        # ``timeout`` is derived from the reference configuration's *runtime*, which
+        # says nothing about how long a build may take -- and in compile-only mode no
+        # run was measured at all, so it is a bound on nothing. Builds are therefore
+        # left unbounded in that mode rather than cut off by a number picked for runs.
+        compile_timeout = None if arguments.compile_only else timeout
+        compilation_successful = self.compile_only(arguments, compile_timeout, thread_count, is_initial)
+        if arguments.compile_only:
+            # The build is the whole answer here. A failed build already stored its
+            # result in compile_only(); a successful one gets a result that carries no
+            # measurement, flagged so nothing downstream reads its 0.0 as a fast run.
+            if compilation_successful:
+                self.execution_result = ExecutionResult(0.0, 0, True, True, compiled_only=True)
+            return
         if compilation_successful:
             self.execute_only(arguments, timeout, thread_count, is_initial)
 
@@ -339,6 +351,8 @@ class CodeConfiguration(object):
             res_str += "Suggestions not applied."
         elif self.execution_result is None:
             res_str += "Not executed."
+        elif self.execution_result.compiled_only:
+            res_str += "Compiled, not executed."
         else:
             res_str += str(round(self.execution_result.runtime, 3)) + "s"
 

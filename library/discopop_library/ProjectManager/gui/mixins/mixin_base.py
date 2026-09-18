@@ -137,6 +137,22 @@ class ConfigManagerMixinBase:
     autotuning_log_level_var: Optional[tk.StringVar]
     autotuning_suggestions_label: Optional[ttk.Label]
     autotuning_tab_index: int
+
+    # Patch Repair panel elements
+    patch_repair_running: bool
+    patch_repair_tab_index: int
+    patch_repair_output_text: Optional[scrolledtext.ScrolledText]
+    patch_repair_run_button: Optional[RoundedButton]
+    patch_repair_stop_button: Optional[RoundedButton]
+    patch_repair_config_label: Optional[ttk.Label]
+    patch_repair_hotspot_types_vars: Optional[Dict[str, tk.BooleanVar]]
+    patch_repair_backend_var: Optional[tk.StringVar]
+    patch_repair_model_var: Optional[tk.StringVar]
+    patch_repair_prompts_var: Optional[tk.StringVar]
+    patch_repair_retries_var: Optional[tk.StringVar]
+    patch_repair_timeout_var: Optional[tk.StringVar]
+    patch_repair_dry_run_var: Optional[tk.BooleanVar]
+    patch_repair_log_level_var: Optional[tk.StringVar]
     autotuning_suggestions_mode_var: tk.StringVar
     autotuner_search_space_selector: SuggestionSelector
     autotuner_evaluate_selector: SuggestionSelector
@@ -318,6 +334,18 @@ class ConfigManagerMixinBase:
 
     def _update_hotspot_config_display(self) -> None:
         """Refresh the parts of the hotspot panel that depend on the selected config."""
+        ...
+
+    def _build_patch_repair_panel(self, parent: tk.Widget) -> None:
+        """Build the patch repair panel UI."""
+        ...
+
+    def _update_patch_repair_ui(self) -> None:
+        """Enable or disable the patch repair panel based on the available patches."""
+        ...
+
+    def _update_patch_repair_config_display(self) -> None:
+        """Update the configuration display label in the patch repair panel."""
         ...
 
     def _build_autotuning_panel(self, parent: tk.Widget) -> None:

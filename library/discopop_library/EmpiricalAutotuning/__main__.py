@@ -50,6 +50,7 @@ def parse_args() -> AutotunerArguments:
 #                        DP_COMPILER.sh must allow the inclusion of OpenMP pragmas into the code. \
 #                        DP_EXECUTE.sh may return not 0, if either the execution or validation of the result failed. \
 #                        A third script DP_VALIDATE.sh might be added to add a validation step, where return code 0 is interpreted as a success, i.e. a valid result.")
+    parser.add_argument("--compile-only", dest="compile_only", action="store_true", help="Build every candidate but execute none of them. Nothing is measured, so no candidate is ranked and no speedup is reported; the run only answers whether each configuration compiles. Intended for checking the applicability of suggestions, e.g. by discopop_patch_repair.")
     parser.add_argument("--skip-cleanup", action="store_true", help="Disable the deletion of created code variants. May require a lot of disk space." )
     parser.add_argument("--sanitize", action="store_true", help="Enable the invocation of ThreadSanitizer if DP_COMPILE_SANITIZE.sh and DP_EXECUTE_SANITIZE.sh are provided." )
     parser.add_argument("-etr", "--execution-time-regex", nargs="?", const=DEFAULT_EXECUTION_TIME_REGEX, default=None,
@@ -80,6 +81,7 @@ def parse_args() -> AutotunerArguments:
         thread_count=arguments.threads,
         hotspot_types=arguments.hotspot_types,
         algorithm=arguments.algorithm,
+        compile_only=arguments.compile_only,
         noise_threshold=arguments.noise_threshold,
         hs_min_share=arguments.hs_min_share,
         max_measurements=arguments.max_measurements,

@@ -9,6 +9,7 @@
 import itertools
 import json
 import logging
+from logging import Logger
 import os
 import time
 from typing import List, Set, Tuple, cast
@@ -68,6 +69,86 @@ def get_unique_configuration_id() -> int:
     buffer = configuration_counter
     configuration_counter += 1
     return buffer
+
+
+def report_compile_only_results(
+    auto_tuner_dir: str,
+    debug_stats: List[DebugStatEntry],
+    optimization_time_s: float,
+    progress_reporter: ProgressReporter,
+    logger: Logger,
+) -> None:
+    """Summarize a --compile-only run and write compile_results.json.
+
+    The reference configuration is reported alongside the candidates: when it is the
+    one that does not build, no candidate's failure says anything about its patches,
+    and a consumer (discopop_patch_repair above all) has to stop rather than ask an
+    agent to repair patches for a project that never compiled.
+    """
+    built: List[List[SUGGESTION_ID]] = []
+    failed: List[List[SUGGESTION_ID]] = []
+    not_applied: List[List[SUGGESTION_ID]] = []
+    reference_built = True
+    for entry in debug_stats:
+        suggestions, _, return_code, _, _, _, failed_suggestions = entry
+        if failed_suggestions:
+            not_applied.append(suggestions)
+        elif return_code == 0:
+            built.append(suggestions)
+        else:
+            failed.append(suggestions)
+            if not suggestions:
+                reference_built = False
+
+    print("##############################")
+    print("Compile-only run. No configuration was executed.")
+    if not reference_built:
+        print("The reference configuration itself does not build -- fix the project first.")
+    print("Built: " + str(len(built)))
+    print("Failed to build: " + str(len(failed)))
+    if not_applied:
+        print("Patches not applicable: " + str(len(not_applied)))
+    for suggestions in failed:
+        print("  does not build: " + (str(suggestions) if suggestions else "<reference configuration>"))
+    print("Time: " + str(round(optimization_time_s, 1)) + "s")
+    print("##############################")
+
+    if not reference_built:
+        logger.error("The reference configuration does not build; candidate build failures are inconclusive.")
+
+    with open(os.path.join(auto_tuner_dir, "compile_results.json"), "w+") as f:
+        json.dump(
+            {
+                "reference_built": reference_built,
+                "built": [[int(s) for s in entry] for entry in built],
+                "failed": [[int(s) for s in entry] for entry in failed],
+                "not_applied": [[int(s) for s in entry] for entry in not_applied],
+            },
+            f,
+            sort_keys=True,
+            indent=4,
+        )
+
+    progress_reporter.compile_summary(built, failed, not_applied, optimization_time_s)
+
+
+def write_measurements(auto_tuner_dir: str, debug_stats: List[DebugStatEntry]) -> None:
+    """Persist the full measurement trace so the GUI can redraw a run without repeating it."""
+    with open(os.path.join(auto_tuner_dir, "measurements.json"), "w+") as f:
+        json.dump(
+            [
+                {
+                    "suggestions": [int(s) for s in entry[0]],
+                    "runtime": entry[1],
+                    "return_code": entry[2],
+                    "result_valid": entry[3],
+                    "thread_sanitizer": entry[4],
+                }
+                for entry in debug_stats
+            ],
+            f,
+            indent=4,
+        )
 
 
 def run(arguments: AutotunerArguments) -> None:
@@ -254,6 +335,17 @@ def run(arguments: AutotunerArguments) -> None:
 
     optimization_time_s = time.time() - optimization_start_time
 
+    if arguments.compile_only:
+        # Nothing was measured, so there is no best configuration to pick, no speedup to
+        # report and nothing to write to results.json -- which is what "apply the
+        # tuner's result" reads, and which must never name a configuration that was
+        # only ever compiled. The build outcomes are the entire result of this mode.
+        report_compile_only_results(auto_tuner_dir, debug_stats, optimization_time_s, progress_reporter, logger)
+        write_measurements(auto_tuner_dir, debug_stats)
+        progress_reporter.close()
+        set_active_reporter(None)
+        return
+
     # select best option and create code folder
     if arguments.algorithm == 1:
         for stat_entry in sorted(debug_stats, key=lambda x: len(x[0]), reverse=True):
@@ -392,21 +484,6 @@ def run(arguments: AutotunerArguments) -> None:
         optimization_time_s,
         not_applied_count=not_applied_count,
     )
-    measurements_path = os.path.join(auto_tuner_dir, "measurements.json")
-    with open(measurements_path, "w+") as f:
-        json.dump(
-            [
-                {
-                    "suggestions": [int(s) for s in entry[0]],
-                    "runtime": entry[1],
-                    "return_code": entry[2],
-                    "result_valid": entry[3],
-                    "thread_sanitizer": entry[4],
-                }
-                for entry in debug_stats
-            ],
-            f,
-            indent=4,
-        )
+    write_measurements(auto_tuner_dir, debug_stats)
     progress_reporter.close()
     set_active_reporter(None)

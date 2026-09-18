@@ -327,6 +327,9 @@ class ExplorerIntegrationMixin(ConfigManagerMixinBase):
         self._update_autotuning_tab_state(ready and browse_ready)
         if hasattr(self, "_update_autotuning_ui"):
             self._update_autotuning_ui()
+        # freshly generated patches are what the Patch Repair tab works on
+        if hasattr(self, "_update_patch_repair_ui"):
+            self._update_patch_repair_ui()
 
     def _check_browse_suggestions_available(self) -> bool:
         patch_gen_dir = os.path.join(self.arguments.dot_dp, "patch_generator")

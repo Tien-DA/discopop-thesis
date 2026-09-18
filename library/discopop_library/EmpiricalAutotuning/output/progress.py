@@ -79,7 +79,10 @@ class ProgressReporter:
             self._fh.flush()
 
     def _speedup(self, runtime: float) -> Optional[float]:
-        if self.reference_runtime is None or runtime <= 0:
+        # A reference of 0.0 is not a fast baseline, it is the absence of one (no run
+        # was measured, e.g. --compile-only). Dividing by it would report every
+        # candidate as infinitely slower than a baseline that never happened.
+        if self.reference_runtime is None or self.reference_runtime <= 0 or runtime <= 0:
             return None
         return round(self.reference_runtime / runtime, 4)
 
@@ -177,6 +180,33 @@ class ProgressReporter:
                 "valid_count": int(valid_count),
                 "invalid_count": int(invalid_count),
                 "failed_count": int(failed_count),
+                "evaluated": self._index,
+                "optimization_time_s": round(optimization_time_s, 2),
+            }
+        )
+
+    def compile_summary(
+        self,
+        built: List[List[SUGGESTION_ID]],
+        failed: List[List[SUGGESTION_ID]],
+        not_applied: List[List[SUGGESTION_ID]],
+        optimization_time_s: float,
+    ) -> None:
+        """Final event of a --compile-only run.
+
+        Deliberately not a ``result`` event: that one carries a speedup and names a
+        best configuration, and a compile-only run has measured neither. Consumers can
+        tell the two modes apart by the event name alone.
+        """
+        self._emit(
+            {
+                "event": "compile_summary",
+                "built": [[int(s) for s in entry] for entry in built],
+                "failed": [[int(s) for s in entry] for entry in failed],
+                "not_applied": [[int(s) for s in entry] for entry in not_applied],
+                "built_count": len(built),
+                "failed_count": len(failed),
+                "not_applied_count": len(not_applied),
                 "evaluated": self._index,
                 "optimization_time_s": round(optimization_time_s, 2),
             }
