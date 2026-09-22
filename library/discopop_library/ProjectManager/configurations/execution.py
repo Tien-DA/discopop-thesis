@@ -14,7 +14,7 @@ import shutil
 import signal
 import subprocess
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from filelock import FileLock
 
@@ -25,6 +25,14 @@ from discopop_library.ProjectManager.configurations.execution_time import (
     TIME_SOURCE_FALLBACK,
     TIME_SOURCE_WALL_CLOCK,
     extract_execution_time,
+)
+from discopop_library.ProjectManager.configurations.repetitions import (
+    SINGLE_MEASUREMENT,
+    TIME_AGGREGATE_FAILED_RUN,
+    TIME_AGGREGATE_MEDIAN,
+    TIME_AGGREGATE_NOT_MEASURED,
+    select_representative,
+    validate_repetitions,
 )
 
 PATH = str
@@ -71,6 +79,114 @@ def _resolve_compiler(cmd: str, search_path: str) -> str:
     return best[1] if best else cmd
 
 
+class _RunOutcome(NamedTuple):
+    """What one run of a script produced, before it is written to the results file.
+
+    ``time`` is the measurement of interest -- the wall clock time, or what the
+    program reported about itself when asked for -- and ``wall_clock_time`` is
+    always the real duration of the process. The two coincide unless an
+    execution time was read from the output.
+    """
+
+    returncode: int
+    time: float
+    wall_clock_time: float
+    time_source: str
+    stdout: str
+    stderr: str
+    timeout_expired: bool
+
+
+def _run_once(
+    script_path: PATH,
+    project_copy_root_path: PATH,
+    my_env: Dict[str, str],
+    thread_count: int,
+    timeout: Optional[float],
+    execution_time_regex: Optional[str],
+    process_started_callback: Optional[Callable[["subprocess.Popen[bytes]"], None]],
+) -> _RunOutcome:
+    """Run the script once and report what it took.
+
+    Split out of :func:`execute_configuration` so that a measurement can be
+    repeated (see
+    :mod:`discopop_library.ProjectManager.configurations.repetitions`) without
+    redoing everything around it: the project copy, the environment and the
+    settings are prepared once and every repetition runs against them.
+    """
+    timeout_expired = False
+    stdout = b""
+    stderr = b""
+    start = time.time()
+    try:
+        if timeout is None:
+            cmd = f"/bin/bash {str(script_path)}"
+        else:
+            cmd = f"timeout {str(timeout)} /bin/bash {str(script_path)}"
+        p = subprocess.Popen(
+            cmd,
+            cwd=project_copy_root_path,
+            executable="/bin/bash",
+            shell=True,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            env=my_env,
+        )
+
+        if process_started_callback is not None:
+            process_started_callback(p)
+
+        stdout, stderr = p.communicate()
+
+    except subprocess.TimeoutExpired as tex:
+        timeout_expired = True
+        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        print("KILLED PROCESS: ", p.pid)
+
+    elapsed = round((time.time() - start), 3)
+
+    # A program reporting its own execution time excludes what is of no interest
+    # (setup, teardown, reading and writing files); prefer that value, but never
+    # silently: a run whose pattern found nothing is reported as falling back to
+    # the wall clock time, so a measurement is never mistaken for the other kind.
+    wall_clock_time = elapsed
+    time_source = TIME_SOURCE_WALL_CLOCK
+    if execution_time_regex is not None and not timeout_expired:
+        reported_time = extract_execution_time(
+            stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace"), execution_time_regex
+        )
+        if reported_time is None:
+            time_source = TIME_SOURCE_FALLBACK
+            logger.warning(
+                "Falling back to the wall clock time of "
+                + os.path.basename(script_path)
+                + ": its output did not report an execution time."
+            )
+        else:
+            elapsed = round(reported_time, 3)
+            time_source = TIME_SOURCE_CONSOLE
+            logger.debug("-> execution time reported by the program: " + str(elapsed) + "s")
+
+    decoded_stdout = stdout.decode("utf-8") if not timeout_expired else ""
+    decoded_stderr = stderr.decode("utf-8") if not timeout_expired else ""
+
+    logger.debug("-> return code: " + str(p.returncode))
+    logger.debug("-> thread count: " + str(thread_count))
+    logger.debug("-> stdout:\n" + decoded_stdout)
+    logger.debug("-> stderr:\n" + decoded_stderr)
+    logger.debug("-> elapsed time: " + str(elapsed) + "s")
+
+    return _RunOutcome(
+        returncode=p.returncode,
+        time=elapsed,
+        wall_clock_time=wall_clock_time,
+        time_source=time_source,
+        stdout=decoded_stdout,
+        stderr=decoded_stderr,
+        timeout_expired=timeout_expired,
+    )
+
+
 def execute_configuration(
     arguments: ProjectManagerArguments,
     project_copy_root_path: PATH,
@@ -82,6 +198,8 @@ def execute_configuration(
     process_started_callback: Optional[Callable[["subprocess.Popen[bytes]"], None]] = None,
     execution_time_regex: Optional[str] = None,
     measurement: Optional[Dict[str, Any]] = None,
+    repetitions: int = SINGLE_MEASUREMENT,
+    should_abort: Optional[Callable[[], bool]] = None,
 ) -> Optional[Tuple[int, float, str, str]]:
     """Run one script of a configuration and record what it took.
 
@@ -94,12 +212,30 @@ def execute_configuration(
     recorded alongside either way, and remains the reported time whenever the
     pattern finds nothing.
 
+    ``repetitions`` runs the script that many times and reports the median of
+    the measured times -- see
+    :mod:`discopop_library.ProjectManager.configurations.repetitions`, which also
+    explains why one of the runs is singled out rather than each field averaged
+    separately. Callers pass it for ``execute.sh`` alone, for the same reason
+    they pass ``execution_time_regex`` there alone: the other scripts produce no
+    measurement, so repeating them would only cost time. Everything but the run
+    itself -- the project copy, the environment, the settings -- is prepared once
+    and shared by every repetition.
+
     ``measurement``, if given, is updated with the record written to
     ``execution_results.json``. A caller needing more than the reported time --
     the autotuner derives its per-candidate timeout from ``wall_clock_time``,
     which has to bound the whole process -- reads it from there rather than from
     the return value, whose shape many callers depend on.
     """
+    # Checked before anything about the process is changed -- in particular before
+    # the working directory is moved into the project copy below, which a raise
+    # from further down would leave behind in a directory that is about to be
+    # deleted.
+    repetition_error = validate_repetitions(repetitions)
+    if repetition_error is not None:
+        raise ValueError("repetitions: " + repetition_error)
+
     # check prerequisites
     if not os.path.exists(settings_path):
         return None
@@ -164,71 +300,84 @@ def execute_configuration(
     # for key in my_env:
     #    print("--> ", key, " : ", my_env[key])
 
-    timeout_expired = False
-    start = time.time()
-    try:
-        #        result = subprocess.run(
-        #            str(script_path),
-        #            cwd=config_path,
-        #            executable="/bin/bash",
-        #            shell=True,
-        #            capture_output=True,
-        #            env=my_env,
-        #            timeout=timeout,
-        #        )
-        if timeout is None:
-            cmd = f"/bin/bash {str(script_path)}"
-        else:
-            cmd = f"timeout {str(timeout)} /bin/bash {str(script_path)}"
-        p = subprocess.Popen(
-            cmd,
-            cwd=project_copy_root_path,
-            executable="/bin/bash",
-            shell=True,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            env=my_env,
+    outcomes: List[_RunOutcome] = []
+    for repetition in range(repetitions):
+        if repetitions > 1:
+            logger.debug("-> repetition " + str(repetition + 1) + " of " + str(repetitions))
+        outcome = _run_once(
+            script_path,
+            project_copy_root_path,
+            my_env,
+            thread_count,
+            timeout,
+            execution_time_regex,
+            process_started_callback,
         )
+        outcomes.append(outcome)
+        # Asked between repetitions so that stopping a repeated run does not have
+        # to wait for the remaining ones. Terminating the running process is the
+        # caller's business (process_started_callback hands it over); this only
+        # keeps the loop from starting another.
+        if should_abort is not None and should_abort():
+            logger.debug("-> stopping after " + str(repetition + 1) + " repetitions: aborted by the caller.")
+            break
+        # Repetitions exist to average the noise out of a *working* run. A
+        # configuration that failed or ran into its timeout will do so again, so
+        # running it another four times would only cost time -- and the entry
+        # recorded below has to be that failure in either case.
+        if outcome.returncode != 0 or outcome.timeout_expired:
+            if repetition + 1 < repetitions:
+                logger.debug(
+                    "-> stopping after "
+                    + str(repetition + 1)
+                    + " of "
+                    + str(repetitions)
+                    + " repetitions: the run did not succeed."
+                )
+            break
 
-        if process_started_callback is not None:
-            process_started_callback(p)
-
-        stdout, stderr = p.communicate()
-
-    except subprocess.TimeoutExpired as tex:
-        timeout_expired = True
-        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-        print("KILLED PROCESS: ", p.pid)
-
-    elapsed = round((time.time() - start), 3)
-
-    # A program reporting its own execution time excludes what is of no interest
-    # (setup, teardown, reading and writing files); prefer that value, but never
-    # silently: a run whose pattern found nothing is reported as falling back to
-    # the wall clock time, so a measurement is never mistaken for the other kind.
-    wall_clock_time = elapsed
-    time_source = TIME_SOURCE_WALL_CLOCK
-    if execution_time_regex is not None and not timeout_expired:
-        reported_time = extract_execution_time(
-            stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace"), execution_time_regex
-        )
-        if reported_time is None:
-            time_source = TIME_SOURCE_FALLBACK
+    # What the median is taken over; narrowed below when a pattern was given and
+    # only some repetitions matched it.
+    usable = outcomes
+    if outcomes[-1].returncode != 0 or outcomes[-1].timeout_expired:
+        # The run that failed is what has to be reported: a median taken among the
+        # repetitions that did succeed would describe the configuration as working.
+        # Its time is that one run's, so it is not labelled as an aggregate either.
+        representative = outcomes[-1]
+        time_aggregate = TIME_AGGREGATE_FAILED_RUN
+    else:
+        # A repetition whose output did not report a time was measured by the wall
+        # clock instead, which systematically includes the setup, teardown and file
+        # I/O the pattern exists to exclude. Taking a median across the two would
+        # let those runs bias the result upward -- and a program that only
+        # intermittently prints its timing is exactly the flaky case repetitions are
+        # meant to help with -- so they are left out of the choice. Unless none
+        # reported a time at all: the wall clock times are then all there is, and
+        # their median is what the run would have reported anyway.
+        usable = [outcome for outcome in outcomes if outcome.time_source != TIME_SOURCE_FALLBACK]
+        if usable and len(usable) < len(outcomes):
             logger.warning(
-                "Falling back to the wall clock time of "
+                str(len(outcomes) - len(usable))
+                + " of "
+                + str(len(outcomes))
+                + " repetitions of "
                 + os.path.basename(script_path)
-                + ": its output did not report an execution time."
+                + " did not report an execution time; their wall clock times are excluded from the median."
             )
-        else:
-            elapsed = round(reported_time, 3)
-            time_source = TIME_SOURCE_CONSOLE
-            logger.debug("-> execution time reported by the program: " + str(elapsed) + "s")
-
-    logger.debug("-> return code: " + str(p.returncode))
-    logger.debug("-> thread count: " + str(thread_count))
-    logger.debug("-> stdout:\n" + stdout.decode("utf-8") if not timeout_expired else "")
-    logger.debug("-> stderr:\n" + stderr.decode("utf-8") if not timeout_expired else "")
-    logger.debug("-> elapsed time: " + str(elapsed) + "s")
+        if not usable:
+            usable = outcomes
+        representative = usable[select_representative([outcome.time for outcome in usable])]
+        time_aggregate = TIME_AGGREGATE_MEDIAN
+    if len(usable) > 1 and time_aggregate == TIME_AGGREGATE_MEDIAN:
+        logger.debug(
+            "-> reported time: "
+            + str(representative.time)
+            + "s ("
+            + TIME_AGGREGATE_MEDIAN
+            + " of "
+            + str([outcome.time for outcome in usable])
+            + ")"
+        )
 
     # save execution results
     stored = _store_execution_result(
@@ -239,15 +388,23 @@ def execute_configuration(
         applied_suggestions,
         application_result,
         {
-            "code": p.returncode,
-            "stdout": stdout.decode("utf-8") if not timeout_expired else "",
-            "stderr": stderr.decode("utf-8") if not timeout_expired else "",
-            "timeout_expired": timeout_expired,
-            "time": elapsed,
-            "wall_clock_time": wall_clock_time,
-            "time_source": time_source,
+            "code": representative.returncode,
+            "stdout": representative.stdout,
+            "stderr": representative.stderr,
+            "timeout_expired": representative.timeout_expired,
+            "time": representative.time,
+            "wall_clock_time": representative.wall_clock_time,
+            "time_source": representative.time_source,
             "thread_count": thread_count,
             "executed": True,
+            "repetitions": len(outcomes),
+            "repetition_times": [outcome.time for outcome in outcomes],
+            "repetition_wall_clock_times": [outcome.wall_clock_time for outcome in outcomes],
+            # How each repetition's time came about, so a reader can tell which of
+            # them the median was taken over: a "wall_clock_fallback" entry is
+            # recorded but excluded from the choice above.
+            "repetition_time_sources": [outcome.time_source for outcome in outcomes],
+            "time_aggregate": time_aggregate,
         },
     )
     if measurement is not None:
@@ -256,10 +413,10 @@ def execute_configuration(
     os.chdir(home_dir)
 
     return (
-        p.returncode,
-        elapsed,
-        stdout.decode("utf-8") if not timeout_expired else "",
-        stderr.decode("utf-8") if not timeout_expired else "",
+        representative.returncode,
+        representative.time,
+        representative.stdout,
+        representative.stderr,
     )
 
 
@@ -389,5 +546,12 @@ def record_skipped_execution(
             "time_source": TIME_SOURCE_WALL_CLOCK,
             "thread_count": thread_count,
             "executed": False,
+            # Empty rather than a list holding the placeholder 0.0: the run never
+            # happened, so there is no measurement to put in it.
+            "repetitions": 0,
+            "repetition_times": [],
+            "repetition_wall_clock_times": [],
+            "repetition_time_sources": [],
+            "time_aggregate": TIME_AGGREGATE_NOT_MEASURED,
         },
     )

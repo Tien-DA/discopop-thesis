@@ -18,6 +18,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 from discopop_library.ProjectManager.gui.mixins.helpers import show_error, Tooltip, clean_ansi_output
 from discopop_library.ProjectManager.gui.mixins.mixin_base import ConfigManagerMixinBase
+from discopop_library.ProjectManager.configurations.repetitions import (
+    DEFAULT_TUNING_REPETITIONS,
+    validate_repetitions,
+)
 from discopop_library.ProjectManager.gui import widgets
 from discopop_library.ProjectManager.gui.rounded_button import RoundedButton
 from discopop_library.ProjectManager.gui.suggestion_selector import SuggestionSelector
@@ -41,6 +45,7 @@ class AutotuningPanelMixin(ConfigManagerMixinBase):
     autotuning_stop_button: Optional[RoundedButton] = None
     autotuning_config_label: Optional[ttk.Label] = None
     autotuning_threads_var: Optional[tk.StringVar] = None
+    autotuning_repetitions_var: Optional[tk.StringVar] = None
     autotuning_hotspot_types_vars: Optional[Dict[str, tk.BooleanVar]] = None
     autotuning_algorithm_var: Optional[tk.StringVar] = None
     autotuning_algorithm_map: Dict[str, str] = {}
@@ -127,6 +132,21 @@ class AutotuningPanelMixin(ConfigManagerMixinBase):
         threads_combo = widgets.thread_selector(threads_row, self.autotuning_threads_var)
         threads_combo.pack(side=tk.LEFT, padx=5)
         caption_label(threads_row, "(auto = CPU count / 2; custom counts can be typed)").pack(side=tk.LEFT, padx=5)
+
+        # Repetitions
+        # Kept apart from the count used for the measured runs (Execute tab): the
+        # search performs one program execution per candidate, so repeating every
+        # one of them multiplies the tuning time. Raising it is worth it only when
+        # the machine's noise is large enough to decide the search's comparisons.
+        repetitions_row = ttk.Frame(settings_frame)
+        repetitions_row.pack(fill=tk.X, pady=5)
+        ttk.Label(repetitions_row, text="Repetitions:", font=widgets.FONT_BODY).pack(side=tk.LEFT, padx=5)
+        self.autotuning_repetitions_var = tk.StringVar(value=str(DEFAULT_TUNING_REPETITIONS))
+        ttk.Entry(repetitions_row, textvariable=self.autotuning_repetitions_var, width=6).pack(side=tk.LEFT, padx=5)
+        caption_label(
+            repetitions_row,
+            "(runs per candidate; the median decides its rank. Above 1 multiplies the tuning time)",
+        ).pack(side=tk.LEFT, padx=5)
 
         # Hotspot types
         hotspot_frame = ttk.Frame(settings_frame)
@@ -630,6 +650,21 @@ class AutotuningPanelMixin(ConfigManagerMixinBase):
         hotspot_types = ",".join(selected_hotspot_types) if selected_hotspot_types else "yes,no,maybe"
 
         threads_value = widgets.thread_value(self.autotuning_threads_var)
+        # A typo in the field must not abort a tuning run that is otherwise ready;
+        # an unusable value falls back to measuring each candidate once, which is
+        # what the run would have done before the field existed.
+        repetitions_value = DEFAULT_TUNING_REPETITIONS
+        if self.autotuning_repetitions_var is not None:
+            typed = self.autotuning_repetitions_var.get().strip()
+            try:
+                parsed = int(typed)
+                problem = validate_repetitions(parsed)
+            except ValueError:
+                parsed, problem = DEFAULT_TUNING_REPETITIONS, "expected a whole number, got '" + typed + "'"
+            if problem is None:
+                repetitions_value = parsed
+            else:
+                output_callback("Ignoring the repetition count: " + problem + ". Measuring each candidate once.\n")
         algorithm_description = self.autotuning_algorithm_var.get()
         algorithm_value = self.autotuning_algorithm_map.get(algorithm_description, "0")
         log_level = self.autotuning_log_level_var.get()
@@ -638,6 +673,7 @@ class AutotuningPanelMixin(ConfigManagerMixinBase):
         output_callback(f"  Configuration: {self.current_config}\n")
         output_callback(f"  Hotspot Types: {hotspot_types}\n")
         output_callback(f"  Threads: {threads_value}\n")
+        output_callback(f"  Repetitions: {repetitions_value}\n")
         output_callback(f"  Algorithm: {algorithm_value}\n")
         output_callback(f"  Log Level: {log_level}\n\n")
 
@@ -659,6 +695,11 @@ class AutotuningPanelMixin(ConfigManagerMixinBase):
 
         if threads_value != "auto":
             cmd.extend(["-t", threads_value])
+
+        # Emitted only when it changes something, so a default tuning run is the
+        # command it was before this field existed.
+        if repetitions_value > 1:
+            cmd.extend(["-xr", str(repetitions_value)])
 
         mode = self.autotuning_suggestions_mode_var.get()
         if mode == "evaluate":

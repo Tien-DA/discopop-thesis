@@ -22,6 +22,7 @@ import unittest
 from unittest.mock import patch
 
 from discopop_library.ProjectManager.__main__ import GUI_MOVED_NOTICE, gui_main, main
+from discopop_library.ProjectManager.configurations.repetitions import DEFAULT_MEASURED_REPETITIONS
 from discopop_library.ProjectManager.gui import display
 
 
@@ -65,6 +66,45 @@ class TestEntryPoints(unittest.TestCase):
         arguments = run_mock.call_args[0][0]
         self.assertFalse(arguments.gui)
         self.assertEqual("1024:dp", arguments.execute_configurations)
+
+    def test_the_repetition_count_reaches_the_run(self) -> None:
+        with patch("discopop_library.ProjectManager.__main__.run") as run_mock:
+            with patch("discopop_library.ProjectManager.__main__.setup_logger"):
+                with patch("sys.argv", ["discopop", "-p", self.project, "-xr", "5"]):
+                    main()
+        run_mock.assert_called_once()
+        self.assertEqual(5, run_mock.call_args[0][0].execution_repetitions)
+
+    def test_measurements_are_repeated_by_default(self) -> None:
+        # A runtime nobody asked to be trustworthy is still read as one, so the
+        # measured runs are repeated unless the caller says otherwise.
+        with patch("discopop_library.ProjectManager.__main__.run") as run_mock:
+            with patch("discopop_library.ProjectManager.__main__.setup_logger"):
+                with patch("sys.argv", ["discopop", "-p", self.project]):
+                    main()
+        self.assertEqual(DEFAULT_MEASURED_REPETITIONS, run_mock.call_args[0][0].execution_repetitions)
+        self.assertEqual(3, DEFAULT_MEASURED_REPETITIONS)
+
+    def test_a_single_measurement_can_still_be_asked_for(self) -> None:
+        """The pre-option behaviour has to stay reachable in one flag."""
+        with patch("discopop_library.ProjectManager.__main__.run") as run_mock:
+            with patch("discopop_library.ProjectManager.__main__.setup_logger"):
+                with patch("sys.argv", ["discopop", "-p", self.project, "-xr", "1"]):
+                    main()
+        self.assertEqual(1, run_mock.call_args[0][0].execution_repetitions)
+
+    def test_an_unusable_repetition_count_is_refused(self) -> None:
+        # Refused before the project is copied and built, not after.
+        out = io.StringIO()
+        with patch("discopop_library.ProjectManager.__main__.run") as run_mock:
+            with patch("discopop_library.ProjectManager.__main__.setup_logger"):
+                with patch("sys.argv", ["discopop", "-p", self.project, "-xr", "0"]):
+                    with contextlib.redirect_stdout(out):
+                        with self.assertRaises(SystemExit) as raised:
+                            main()
+        self.assertEqual(1, raised.exception.code)
+        run_mock.assert_not_called()
+        self.assertIn("--execution-repetitions", out.getvalue())
 
     def test_gui_entry_point_still_forces_the_window(self) -> None:
         with patch("discopop_library.ProjectManager.__main__.run") as run_mock:

@@ -43,6 +43,18 @@ For meaningful scaling information the hotspot detection should be run for at le
 
 This is what [patch repair](Patch_repair.md) uses to find the suggestions whose patches do not build, and to verify a repair, without paying a full program run per check.
 
+## Measurement noise
+Every comparison the search makes rests on a single program execution, so noise on the machine can decide which candidate looks faster. `--execution-repetitions N` (`-xr N`) runs each candidate `N` times and ranks it by the median of the measured times; the individual measurements are logged with the result, so a decision taken by a margin smaller than the spread between them is visible as such.
+
+**The default here is 1**, unlike the project manager's 3. The tuner is the expensive place to repeat: it performs one program execution per candidate, so the count multiplies the runtime of a whole search.
+
+Two cheaper measures come first:
+
+- `--noise-threshold` already requires a suggestion to improve the runtime by a given margin (`-A 6`, 2% by default) before it is accepted, which is what keeps noise out of the *decisions*.
+- Repeating the **final** measurements instead — `discopop_project_manager --execution-repetitions`, which is on by default — gives a stable reported runtime at no cost to the search. The two options are separate for exactly this reason.
+
+Raising the tuner's own count is worth it when the machine's noise is large enough to decide the search's comparisons, i.e. comparable to `--noise-threshold`. See [Repeated measurements](Project_manager.md#repeated-measurements) for what is recorded.
+
 ## Required input
 - `Parallel patterns` in the form of a `JSON` file, created by the [Explorer](Explorer.md)
 - `Detected hotspots` in the form of a `JSON` file, created by the [Hotspot detection](https://github.com/discopop-project/Hotspot-Detection)

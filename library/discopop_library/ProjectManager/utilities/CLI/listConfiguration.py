@@ -28,6 +28,7 @@ from discopop_library.ProjectManager.configurations.execution import (
     record_skipped_execution,
 )
 from discopop_library.ProjectManager.configurations.execution_time import resolve_execution_time_regex
+from discopop_library.ProjectManager.configurations.repetitions import repetitions_for_mode
 from discopop_library.ProjectManager.configurations.validation import has_validate_script, run_validation_phase
 
 logger = logging.getLogger("ConfigurationManager")
@@ -151,6 +152,10 @@ def show_configurations_with_execution(
         # Only execute.sh is a measurement, so only its runs are searched for an
         # execution time reported by the program itself; compile.sh and validate.sh
         # keep their wall clock times.
+        # Repetitions follow the same reasoning one step further: of the execute.sh
+        # runs, only seq and par measure a runtime. dp and hd are instrumented
+        # profiling runs whose output feeds the Explorer, so repeating them would
+        # multiply the profiling cost without improving any measurement.
         execution_time_regex = resolve_execution_time_regex(config, arguments.execution_time_regex)
 
         if arguments.execute_inplace:
@@ -305,6 +310,7 @@ def show_configurations_with_execution(
                     __get_thread_count(config, "seq", config_thread_counts),
                     arguments.timeout_execution,
                     execution_time_regex=execution_time_regex,
+                    repetitions=repetitions_for_mode("seq", arguments.execution_repetitions),
                 )
                 seq_execute_successful = ret is not None and ret[0] == 0
 
@@ -369,6 +375,7 @@ def show_configurations_with_execution(
                     __get_thread_count(config, "par", config_thread_counts),
                     arguments.timeout_execution,
                     execution_time_regex=execution_time_regex,
+                    repetitions=repetitions_for_mode("par", arguments.execution_repetitions),
                 )
                 par_execute_successful = ret is not None and ret[0] == 0
 

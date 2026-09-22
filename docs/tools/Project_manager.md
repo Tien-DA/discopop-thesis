@@ -90,6 +90,55 @@ Both output streams are searched (`stdout` first, then `stderr`), and of several
 
 If the pattern finds nothing, the wall clock time is measured instead and a warning is logged. Such a run is recorded with `"time_source": "wall_clock_fallback"`, so a fallback is never mistaken for a program that reported its own time. Every entry in `execution_results.json` carries the measured wall clock time as `wall_clock_time` alongside the reported `time`, whichever of the two `time` holds.
 
+### Repeated measurements
+A single run is one sample of a noisy quantity: another benchmark on the machine, a background rebuild, the page cache in whatever state the previous run left it — all of it lands in that one number, and two measurements of the *same* code can then differ by more than the effect being looked for.
+
+`--execution-repetitions N` (`-xr N`) runs each measured execution `N` times and reports the **median** of the measured times. The median rather than the mean, because a single stalled run drags an average up but cannot move the middle value.
+
+**The default is 3**, not 1: a runtime nobody asked to be trustworthy is still read as one, and three is the smallest count at which a median can ignore an outlier — two runs have no middle value. Pass `-xr 1` for the single measurement releases before this option made.
+
+Of the repetitions, one is singled out as the *representative* — the run whose time is the median, or the lower of the two middle values when `N` is even. Its wall clock time, console output, return code and time source are what get recorded, so the stored entry describes one run that actually happened: the recorded `wall_clock_time` really is the wall clock time of the run whose `time` is reported, and the recorded `stdout` really is the output that time was read from.
+
+Every individual measurement is kept alongside it, so a spread can be computed without re-running anything:
+
+```json
+{
+    "time": 4.1,
+    "wall_clock_time": 4.1,
+    "repetitions": 5,
+    "repetition_times": [4.1, 4.05, 6.8, 4.08, 4.12],
+    "repetition_wall_clock_times": [4.1, 4.05, 6.8, 4.08, 4.12],
+    "repetition_time_sources": ["console", "console", "console", "console", "console"],
+    "time_aggregate": "median"
+}
+```
+
+`time` still holds the measurement of interest, exactly as without repetitions, so the reports, the plots and everything else reading `execution_results.json` need to know nothing about the option.
+
+`time_aggregate` says whether `time` is an aggregate at all, so a consumer never has to infer it from the number of repetitions:
+
+| Value | `time` holds |
+|---|---|
+| `median` | the median of `repetition_times` |
+| `failed_run` | the failing repetition's own time — the loop stopped there, so nothing was averaged |
+| `not_measured` | nothing; the run was never started (see below), and `repetition_times` is empty |
+
+What is and is not repeated:
+
+| Run | Repeated | Why |
+|---|---|---|
+| `execute.sh` in `seq` / `par` | yes | these measure a runtime |
+| `execute.sh` in `dp` / `hd` | no | instrumented profiling runs whose output feeds the Explorer; repeating them multiplies the profiling cost without improving a measurement |
+| `compile.sh`, `compile_validate.sh`, `validate.sh` | no | they produce no measurement |
+
+A repetition that exits non-zero or runs into its timeout ends the loop: a broken configuration will fail again, and that failing run is what gets recorded — a median taken among the repetitions that did succeed would describe the configuration as working. Such an entry is marked `"time_aggregate": "failed_run"`, since its `time` is one run's and not an average of any.
+
+Combined with `--execution-time-regex`, a repetition whose output does not contain the pattern is measured by the wall clock instead — a systematically larger number, since it covers the setup, teardown and file I/O the pattern exists to exclude. Such a repetition is **left out of the median**, and a warning names how many were dropped: a program that only intermittently prints its timing is exactly the flaky case repetitions are meant to help with, and letting the fallbacks in would make the reported number worse the more often it happens. If *no* repetition reported a time, the wall clock times are all there is and their median is reported, as it would have been anyway. `repetition_time_sources` records how each repetition's time came about, so a reader can tell which of them the median was taken over.
+
+The timeouts apply **per repetition**, not to the sequence, so `-tox` does not have to be raised alongside `-xr`. The total time a run takes does grow with `N`.
+
+`discopop_auto_tuner` accepts the same option for its own candidate measurements, and the two are deliberately separate — including in their defaults, which are 3 here and **1** there. The search performs one program execution per *candidate*, so the same count would multiply the runtime of a whole search rather than of one reported number, and `--noise-threshold` already keeps noise out of its decisions. Repeating the final measurements alone gives a stable reported runtime at no cost to the search.
+
 ### Output validation
 `validate.sh` is optional. Without it, a run counts as correct exactly when `execute.sh` exits `0`. With it, the run counts as correct only when **both** exit `0`. It is run separately from `execute.sh` so that validation work — dumping output, diffing against a reference — never enters the runtime measurement.
 

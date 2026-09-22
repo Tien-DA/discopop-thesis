@@ -31,6 +31,11 @@ class ExecutionResult(object):
     # ``runtime`` is then 0.0 and carries no information: it is not a fast run, it is
     # no run at all. Consumers that report or rank runtimes must check this first.
     compiled_only: bool
+    # Every measurement the run produced, when it was repeated. ``runtime`` is their
+    # median, so the spread between them says how much of a difference between two
+    # candidates this measurement could actually have resolved. Empty when the run
+    # was not measured at all (--compile-only, a failed application).
+    repetition_runtimes: List[float]
 
     def __init__(
         self,
@@ -42,6 +47,7 @@ class ExecutionResult(object):
         failed_suggestions: Optional[List[int]] = None,
         wall_clock_runtime: Optional[float] = None,
         compiled_only: bool = False,
+        repetition_runtimes: Optional[List[float]] = None,
     ):
         self.runtime = runtime
         # defaults to runtime, which is exactly right when no execution time was
@@ -53,6 +59,7 @@ class ExecutionResult(object):
         self.application_failed = application_failed
         self.failed_suggestions = [] if failed_suggestions is None else failed_suggestions
         self.compiled_only = compiled_only
+        self.repetition_runtimes = [] if repetition_runtimes is None else repetition_runtimes
 
     def __str__(self) -> str:
         if self.compiled_only:
@@ -68,6 +75,20 @@ class ExecutionResult(object):
             + " TSAN: "
             + str(self.thread_sanitizer)
         )
+        if len(self.repetition_runtimes) > 1 and self.return_code == 0:
+            # What the reported time rests on: a search that accepted a suggestion
+            # by a margin smaller than this spread decided on noise. Not claimed for
+            # a failed run: its runtime is the failing repetition's own, not a
+            # median -- the loop stops at the first failure.
+            res += (
+                " (median of "
+                + str(len(self.repetition_runtimes))
+                + ": "
+                + str(round(min(self.repetition_runtimes), 4))
+                + "-"
+                + str(round(max(self.repetition_runtimes), 4))
+                + ")"
+            )
         if self.application_failed:
             res += " NOT APPLIED: " + str(self.failed_suggestions)
         return res

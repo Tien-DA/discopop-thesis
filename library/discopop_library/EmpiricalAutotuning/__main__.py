@@ -18,6 +18,10 @@ from discopop_library.ProjectManager.configurations.execution_time import (
     EXECUTION_TIME_DISABLED,
     validate_execution_time_regex,
 )
+from discopop_library.ProjectManager.configurations.repetitions import (
+    DEFAULT_TUNING_REPETITIONS,
+    validate_repetitions,
+)
 
 
 def parse_args() -> AutotunerArguments:
@@ -53,6 +57,9 @@ def parse_args() -> AutotunerArguments:
     parser.add_argument("--compile-only", dest="compile_only", action="store_true", help="Build every candidate but execute none of them. Nothing is measured, so no candidate is ranked and no speedup is reported; the run only answers whether each configuration compiles. Intended for checking the applicability of suggestions, e.g. by discopop_patch_repair.")
     parser.add_argument("--skip-cleanup", action="store_true", help="Disable the deletion of created code variants. May require a lot of disk space." )
     parser.add_argument("--sanitize", action="store_true", help="Enable the invocation of ThreadSanitizer if DP_COMPILE_SANITIZE.sh and DP_EXECUTE_SANITIZE.sh are provided." )
+    parser.add_argument("-xr", "--execution-repetitions", type=int, default=DEFAULT_TUNING_REPETITIONS,
+                        help="Run each candidate this many times and rank it by the median of the measured times, so that a single noisy run cannot decide the search. Note that this multiplies the tuning time: the search performs one program execution per candidate. Repeating the final measurements instead (discopop_project_manager --execution-repetitions) keeps the search cheap while still reporting a stable runtime. Default: " + str(DEFAULT_TUNING_REPETITIONS) + " (measure each candidate once); the measured runs are repeated by default instead.")
+
     parser.add_argument("-etr", "--execution-time-regex", nargs="?", const=DEFAULT_EXECUTION_TIME_REGEX, default=None,
                         help="Rank candidates by the execution time reported in the console output of execute.sh instead of its wall clock time. Expects a regular expression whose first capture group holds the value, e.g. 'Total time:\\s*([0-9.]+)'. Given without a value, the tag '<" + DEFAULT_EXECUTION_TIME_TAG + ">value</" + DEFAULT_EXECUTION_TIME_TAG + ">' is searched for. Overrides the per configuration setting stored in execution_time.json; pass an empty string to disable the search even where a configuration enables it. If omitted, the configuration's own setting applies.")
 
@@ -67,6 +74,12 @@ def parse_args() -> AutotunerArguments:
         if regex_error is not None:
             print("ERROR: --execution-time-regex: " + regex_error)
             sys.exit(1)
+
+    # A count of zero would leave every candidate unmeasured and therefore unrankable.
+    repetitions_error = validate_repetitions(arguments.execution_repetitions)
+    if repetitions_error is not None:
+        print("ERROR: --execution-repetitions: " + repetitions_error)
+        sys.exit(1)
 
     return AutotunerArguments(
         log_level=arguments.log.upper(),
@@ -87,6 +100,7 @@ def parse_args() -> AutotunerArguments:
         max_measurements=arguments.max_measurements,
         skip_removal_pass=arguments.skip_removal_pass,
         execution_time_regex=arguments.execution_time_regex,
+        execution_repetitions=arguments.execution_repetitions,
     )
 
 

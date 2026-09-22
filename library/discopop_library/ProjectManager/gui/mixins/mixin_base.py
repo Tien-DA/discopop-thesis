@@ -69,6 +69,7 @@ class ConfigManagerMixinBase:
     mode_vars: Dict[str, tk.BooleanVar]
     mode_checkbuttons: Dict[str, ttk.Checkbutton]
     thread_var: tk.IntVar
+    execution_repetitions_var: tk.IntVar
     label_prefix_var: tk.StringVar
     timeout_execution_var: tk.IntVar
     timeout_compilation_var: tk.IntVar

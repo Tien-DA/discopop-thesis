@@ -24,6 +24,7 @@ from discopop_library.ProjectManager.configurations.copying import (
 )
 from discopop_library.ProjectManager.configurations.deletion import delete_configuration
 from discopop_library.ProjectManager.configurations.execution import execute_configuration, record_skipped_execution
+from discopop_library.ProjectManager.configurations.repetitions import repetitions_for_mode, validate_repetitions
 from discopop_library.ProjectManager.configurations.execution_time import (
     extract_execution_time,
     resolve_execution_time_regex,
@@ -100,6 +101,19 @@ class ExecutionMixin(ConfigManagerMixinBase):
             )
             return False
 
+        try:
+            repetitions = self.execution_repetitions_var.get()
+            problem = validate_repetitions(repetitions)
+            if problem is not None:
+                self._set_status("Error: repetitions: " + problem, fg=widgets.STATUS_FAIL, reset_delay=3000)
+                return False
+        except (ValueError, tk.TclError):
+            # An empty or non-numeric entry; caught here because reading it again
+            # in the worker thread would raise where nothing reports it and the
+            # buttons have already been disabled.
+            self._set_status("Error: Repetitions must be a valid integer", fg=widgets.STATUS_FAIL, reset_delay=3000)
+            return False
+
         return True
 
     def _describe_execution_time(self, elapsed: float, stdout: str, stderr: str, regex: Optional[str]) -> str:
@@ -169,6 +183,7 @@ class ExecutionMixin(ConfigManagerMixinBase):
         timeout_execution = self.timeout_execution_var.get()
         timeout_compilation = self.timeout_compilation_var.get()
         timeout_validation = self.timeout_validation_var.get()
+        execution_repetitions = self.execution_repetitions_var.get()
         log_level = self.log_level_var.get()
         suggestions_mode = self.suggestions_mode_var.get()
         assert self.current_config is not None
@@ -184,6 +199,7 @@ class ExecutionMixin(ConfigManagerMixinBase):
         args_copy.timeout_execution = timeout_execution
         args_copy.timeout_compilation = timeout_compilation
         args_copy.timeout_validation = timeout_validation
+        args_copy.execution_repetitions = execution_repetitions
         args_copy.log_level = log_level
 
         combined_ids: list[str] = []
@@ -356,6 +372,10 @@ class ExecutionMixin(ConfigManagerMixinBase):
                     args_copy.timeout_execution,
                     process_started_callback=self._register_execution_process,
                     execution_time_regex=execution_time_regex,
+                    # Which modes are repeated is decided in one place, shared with
+                    # the command line, so the two cannot drift apart.
+                    repetitions=repetitions_for_mode(mode, args_copy.execution_repetitions),
+                    should_abort=self._execution_stop_event.is_set,
                 )
                 self._execution_process = None
 

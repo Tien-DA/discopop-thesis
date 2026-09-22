@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any
 
+from discopop_library.ProjectManager.configurations.repetitions import DEFAULT_MEASURED_REPETITIONS
 from discopop_library.ProjectManager.gui import widgets
 from discopop_library.ProjectManager.gui.widgets import caption_label
 from discopop_library.ProjectManager.gui.suggestion_selector import SuggestionSelector
@@ -107,6 +108,20 @@ class ExecutePanelMixin(ConfigManagerMixinBase):
         self.thread_var = tk.IntVar(value=cpu_count // 2)
         thread_entry = ttk.Entry(thread_frame, textvariable=self.thread_var, width=10)
         thread_entry.pack(side=tk.LEFT, padx=5)
+
+        # Beside the thread count rather than among the timeouts: this is part of
+        # what the run measures, not a limit imposed on it. Only the seq and par
+        # runs are repeated -- dp and hd are instrumented profiling runs whose
+        # output feeds the Explorer, and a median of those would mean nothing.
+        repetitions_frame = ttk.Frame(settings_frame)
+        repetitions_frame.pack(fill=tk.X, pady=3)
+        ttk.Label(repetitions_frame, text="Repetitions:", width=20, anchor=tk.W).pack(side=tk.LEFT)
+        self.execution_repetitions_var = tk.IntVar(value=DEFAULT_MEASURED_REPETITIONS)
+        repetitions_entry = ttk.Entry(repetitions_frame, textvariable=self.execution_repetitions_var, width=10)
+        repetitions_entry.pack(side=tk.LEFT, padx=5)
+        caption_label(repetitions_frame, "(median of N is reported; 1 = measure once. seq/par only)").pack(
+            side=tk.LEFT, padx=5
+        )
 
         # The setting itself lives in Editor -> execute.sh, because it describes
         # that script's program. It is mirrored here read-only: the run is started

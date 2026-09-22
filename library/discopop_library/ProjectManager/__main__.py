@@ -18,6 +18,10 @@ from discopop_library.ProjectManager.configurations.execution_time import (
     EXECUTION_TIME_DISABLED,
     validate_execution_time_regex,
 )
+from discopop_library.ProjectManager.configurations.repetitions import (
+    DEFAULT_MEASURED_REPETITIONS,
+    validate_repetitions,
+)
 
 GUI_COMMAND = "discopop_gui"
 
@@ -58,6 +62,9 @@ def _build_parser() -> ArgumentParser:
     parser.add_argument("-toc", "--timeout-compilation", type=int, default=3600, help="Timeout in seconds for each individual code compilation. Use 0 to disable timeout. Default: 3600.")
     parser.add_argument("-tov", "--timeout-validation", type=int, default=3600, help="Timeout in seconds for each individual output validation (validate.sh). Use 0 to disable timeout. Default: 3600.")
 
+    parser.add_argument("-xr", "--execution-repetitions", type=int, default=DEFAULT_MEASURED_REPETITIONS,
+                        help="Repeat each measured execution this many times and report the median of the measured times, so that a single noisy run no longer decides a configuration's runtime. Every individual measurement is kept in execution_results.json alongside it. Applies to the seq and par runs; the dp and hd runs are instrumented profiling runs rather than measurements and are never repeated. Pass 1 to measure once, as releases before this option did. Default: " + str(DEFAULT_MEASURED_REPETITIONS) + ".")
+
     parser.add_argument("-etr", "--execution-time-regex", nargs="?", const=DEFAULT_EXECUTION_TIME_REGEX, default=None,
                         help="Read the execution time from the console output of execute.sh instead of measuring its wall clock time. Expects a regular expression whose first capture group holds the value, e.g. 'Total time:\\s*([0-9.]+)'. Given without a value, the tag '<" + DEFAULT_EXECUTION_TIME_TAG + ">value</" + DEFAULT_EXECUTION_TIME_TAG + ">' is searched for. Overrides the per configuration setting stored in execution_time.json; pass an empty string to disable the search even where a configuration enables it. If omitted, each configuration's own setting applies.")
 
@@ -83,6 +90,13 @@ def parse_args(force_gui: bool = False) -> ProjectManagerArguments:
             print("ERROR: --execution-time-regex: " + regex_error)
             sys.exit(1)
 
+    # A count of zero would mean "measure nothing"; rejected here rather than after
+    # the project has been copied and built.
+    repetitions_error = validate_repetitions(arguments.execution_repetitions)
+    if repetitions_error is not None:
+        print("ERROR: --execution-repetitions: " + repetitions_error)
+        sys.exit(1)
+
     return ProjectManagerArguments(
         project_root=arguments.project,
         full_execute=arguments.execute_full,
@@ -104,6 +118,7 @@ def parse_args(force_gui: bool = False) -> ProjectManagerArguments:
         timeout_compilation=None if arguments.timeout_compilation == 0 else float(arguments.timeout_compilation),
         timeout_validation=None if arguments.timeout_validation == 0 else float(arguments.timeout_validation),
         execution_time_regex=arguments.execution_time_regex,
+        execution_repetitions=arguments.execution_repetitions,
     )
 
 

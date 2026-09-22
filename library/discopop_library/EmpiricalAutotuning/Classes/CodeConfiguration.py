@@ -205,6 +205,7 @@ class CodeConfiguration(object):
             timeout,
             execution_time_regex=resolve_execution_time_regex(config_path, arguments.execution_time_regex),
             measurement=measurement,
+            repetitions=arguments.execution_repetitions,
         )
         if ret is None:
             result_returncode = 1
@@ -258,6 +259,7 @@ class CodeConfiguration(object):
             result_valid,
             thread_sanitizer_valid,
             wall_clock_runtime=wall_clock_time,
+            repetition_runtimes=measurement.get("repetition_times", []),
         )
 
     def create_copy(

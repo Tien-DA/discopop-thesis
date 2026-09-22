@@ -14,6 +14,7 @@ from typing import List, Optional
 import warnings
 
 from discopop_library.ArgumentClasses.GeneralArguments import GeneralArguments
+from discopop_library.ProjectManager.configurations.repetitions import DEFAULT_MEASURED_REPETITIONS
 from logging import Logger
 
 
@@ -43,6 +44,13 @@ class ProjectManagerArguments(GeneralArguments):
     # empty string disables the search, anything else is used as the pattern.
     # See discopop_library.ProjectManager.configurations.execution_time.
     execution_time_regex: Optional[str] = None
+    # How often each measured execution is repeated; the median of the repetitions
+    # is what gets reported. Applies to the seq and par runs, which are the ones
+    # that measure something -- the dp and hd runs are instrumented profiling runs
+    # whose output feeds the Explorer, and repeating them would multiply the
+    # profiling cost while producing no better measurement. See
+    # discopop_library.ProjectManager.configurations.repetitions.
+    execution_repetitions: int = DEFAULT_MEASURED_REPETITIONS
     # derived values
     dot_dp: str = ""
     project_dir: str = ""

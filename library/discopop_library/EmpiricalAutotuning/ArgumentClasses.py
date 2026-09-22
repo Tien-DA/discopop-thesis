@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 from discopop_library.ArgumentClasses.GeneralArguments import GeneralArguments
 from discopop_library.ProjectManager.configurations.compile_script import resolve_compile_script_path
+from discopop_library.ProjectManager.configurations.repetitions import DEFAULT_TUNING_REPETITIONS
 
 logger = logging.getLogger("AutotunerArguments")
 
@@ -52,6 +53,13 @@ class AutotunerArguments(GeneralArguments):
     # ranks candidates by measured runtime, so which of the two times is measured
     # decides what it optimizes for.
     execution_time_regex: Optional[str] = None
+    # How often each candidate's execute.sh is run before its time is decided; the
+    # median of the repetitions is what the candidate is ranked by. Separate from
+    # the count used for the final measurements on purpose: the search runs one
+    # program execution per candidate and repeating every one of them multiplies
+    # the tuning time, while the noise a repetition removes only has to be smaller
+    # than the improvement the search is asked to detect (--noise-threshold).
+    execution_repetitions: int = DEFAULT_TUNING_REPETITIONS
 
     def __post_init__(self) -> None:
         self.project_path = str(Path(self.dot_dp_path).parent.absolute())
