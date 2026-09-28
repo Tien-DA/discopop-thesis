@@ -12,6 +12,7 @@ PEP 517 build backend wrapper.
 Checks for required system executables and apt packages before delegating
 all build hooks to scikit_build_core.build.
 """
+
 from __future__ import annotations
 
 import re
