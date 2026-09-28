@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from discopop_gui.Visualizers.Base import Base
 from discopop_gui.Objects.Frames.Base import Base as BaseFrame
 from discopop_gui.Objects.Frames.MultiFrame import MultiFrame
-from discopop_gui.Objects.Frames.CanvasViewer import CanvasViewer
+from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 from discopop_gui.Enums.ViewerMode import ViewerMode as CanvasViewerMode
 from discopop_gui.Exceptions.VisualizerNotDefined import VisualizerNotDefined
 from discopop_gui.Objects.Canvases.Viewables.WithTrees import WithTrees as ViewableCanvasWithTrees
@@ -102,11 +102,11 @@ class Plottable:
         if self._visualizer is None:
             raise VisualizerNotDefined()
         
-        def canvas_builder(parent : tk.Frame, canvas_viewer : CanvasViewer[ViewableCanvasWithTrees], canvas_viewer_mode : CanvasViewerMode) -> ViewableCanvasWithTrees:
-            return ViewableCanvasWithTrees(parent, canvas_viewer, canvas_viewer_mode, bg="white")
+        def canvas_builder(parent : tk.Frame, canvas_viewer : CanvasViewerWithTrees, canvas_viewer_mode : CanvasViewerMode) -> ViewableCanvasWithTrees:
+            return ViewableCanvasWithTrees(parent, canvas_viewer, canvas_viewer_mode, bg = "white")
         
-        def frame_builder(parent : tk.Misc) -> CanvasViewer[ViewableCanvasWithTrees]:
-            return CanvasViewer[ViewableCanvasWithTrees](parent)
+        def frame_builder(parent : tk.Misc) -> CanvasViewerWithTrees:
+            return CanvasViewerWithTrees(parent)
 
         frame = self._visualizer.create_frame(name, frame_builder)
         canvas = frame.get_canvas(frame.add_canvas(canvas_builder))

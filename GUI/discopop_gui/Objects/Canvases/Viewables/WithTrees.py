@@ -20,13 +20,13 @@ from discopop_gui.Objects.CanvasItems.TreeEdges.Main import Main as VisualMainEd
 from discopop_gui.Objects.CanvasItems.TreeEdges.Dependency import Dependency as VisualDependencyEdge
 
 if TYPE_CHECKING:
-    from discopop_gui.Objects.Frames.CanvasViewer import CanvasViewer
+    from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class WithTrees(Base):
     def __init__(
         self,
         parent : tk.Frame,
-        canvas_viewer : "CanvasViewer[WithTrees]",
+        canvas_viewer : "CanvasViewerWithTrees",
         viewer_mode : ViewerMode,
         serializable : bool = True,
         trees : Dict[int, TreeNode] = {},
@@ -37,7 +37,7 @@ class WithTrees(Base):
         super().__init__(parent, viewer_mode, serializable, *args, **kwargs)
         self._canvas_viewer = canvas_viewer
         self._nodes : Dict[int, TreeNode] = trees
-        self._highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]] = []
+        self._highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]] = highest_managed_dependencies
         self._visual_nodes : Dict[int, VisualTreeNode] = {}
         self._highest_visual_node_ids : List[int] = []
         self._highest_visual_nodes_x_offset_data : Dict[int, Tuple[int, int, int]] = {}
@@ -212,7 +212,7 @@ class WithTrees(Base):
     def add_clone_to_canvas_viewer(self, starting_tree_node_id : int) -> None:
         starting_tree_node = self.get_visual_node(starting_tree_node_id)
 
-        def canvas_builder(parent : tk.Frame, canvas_viewer : "CanvasViewer[WithTrees]", canvas_viewer_mode : ViewerMode) -> "WithTrees":
+        def canvas_builder(parent : tk.Frame, canvas_viewer : "CanvasViewerWithTrees", canvas_viewer_mode : ViewerMode) -> "WithTrees":
             return WithTrees(parent, canvas_viewer, canvas_viewer_mode, False, self._nodes, self._highest_managed_dependencies, bg = self["bg"])
 
         cloned_canvas = self._canvas_viewer.get_canvas(self._canvas_viewer.add_canvas(canvas_builder))

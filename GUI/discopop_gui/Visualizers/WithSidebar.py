@@ -11,19 +11,15 @@ from __future__ import annotations
 import json
 import tkinter as tk
 from tkinter import filedialog
-from typing import Any, Dict, Callable, Optional, cast, get_args
+from typing import Any, Dict, Callable, Optional
 
 from discopop_gui.Types.FrameT import FrameT
 from discopop_gui.Visualizers.Base import Base
 from discopop_gui.Enums.FrameType import FrameType
-from discopop_gui.Enums.ViewableCanvasTypes import ViewableCanvasTypes
 from discopop_gui.ClassMaps.Frames import FramesMap
-from discopop_gui.ClassMaps.ViewableCanvases import ViewableCanvasesMap
 from discopop_gui.Objects.Frames.Base import Base as FrameBase
 from discopop_gui.Objects.Frames.MultiFrame import MultiFrame
-from discopop_gui.Objects.Frames.CanvasViewer import CanvasViewer
-from discopop_gui.Objects.Canvases.Viewables.Base import Base as ViewableCanvasesBase
-from discopop_gui.Objects.Canvases.Viewables.WithTrees import WithTrees as ViewableCanvasesWithTrees
+from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class WithSidebar(Base):
     def __init__(self, visualize_on : Optional[tk.Frame] = None) -> None:
@@ -149,13 +145,8 @@ class WithSidebar(Base):
             data = json.load(file)
             match FrameType(data["type"]):
                 case FrameType.CANVAS_VIEWER:
-                    match ViewableCanvasesMap[data["generic_type"]]:
-                        case ViewableCanvasTypes.BASE:
-                            canvas_frame_with_base = self.create_frame(data["frame_name"], CanvasViewer[ViewableCanvasesBase])
-                            canvas_frame_with_base.deserialize(data["data"])
-                        case ViewableCanvasTypes.WITH_TREES:
-                            canvas_frame_with_trees = self.create_frame(data["frame_name"], CanvasViewer[ViewableCanvasesWithTrees])
-                            canvas_frame_with_trees.deserialize(data["data"])
+                    canvas_frame_with_trees = self.create_frame(data["frame_name"], CanvasViewerWithTrees)
+                    canvas_frame_with_trees.deserialize(data["data"])
                 case FrameType.MULTI_FRAME:
                     multi_frame = self.create_frame(data["frame_name"], MultiFrame)
                     multi_frame.deserialize(data["data"])
@@ -230,15 +221,10 @@ class WithSidebar(Base):
             return None
 
         frame = self._frames[self._current_frame_id]
-        generic_type = ""
-
-        if isinstance(frame, CanvasViewer):
-            generic_type = frame.get_generic_type_as_string()
 
         return {
             "frame_name": self._frame_names[self._current_frame_id],
             "type" : FramesMap[frame.__class__.__name__].value,
-            "data" : frame.serialize(),
-            "generic_type" : generic_type
+            "data" : frame.serialize()
         }
 
