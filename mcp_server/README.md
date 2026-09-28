@@ -312,7 +312,7 @@ The default (`discopop_mcp_server`) uses **stdio** for communication with Claude
 
 Include in your DiscoPoP repository:
 ```bash
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/discopop-project/discopop.git#subdirectory=mcp_server
 ```
 
 ### Method 3: Bundled Binary
@@ -399,4 +399,4 @@ This software is part of DiscoPoP and is licensed under the 3-Clause BSD License
 For issues, questions, or contributions:
 - Email: discopop@lists.parallel.informatik.tu-darmstadt.de
 - Website: https://www.discopop.tu-darmstadt.de/
-- Repository: https://github.com/discopop-tool/discopop
+- Repository: https://github.com/discopop-project/discopop
