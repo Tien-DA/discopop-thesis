@@ -7,7 +7,7 @@
 # directory for details.
 
 import logging
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 from termcolor import colored
 from tqdm import tqdm  # type: ignore
@@ -34,7 +34,15 @@ class _ColoredFormatter(logging.Formatter):
         return colored(formatted, color) if color is not None else formatted
 
 
-class _TqdmLoggingHandler(logging.StreamHandler[TextIO]):
+# `logging.StreamHandler` is generic for type checkers, but only subscriptable at runtime
+# from Python 3.11 on. Subscript it for the type checker only, so older interpreters work.
+if TYPE_CHECKING:
+    _StreamHandler = logging.StreamHandler[TextIO]
+else:
+    _StreamHandler = logging.StreamHandler
+
+
+class _TqdmLoggingHandler(_StreamHandler):
     """Writes log records via `tqdm.write` instead of directly to the stream, so they do not
     corrupt an active `tqdm` progress bar or spinner. The write is serialized against the
     spinner renderer thread on the same lock it uses (see StatusReporting.console), since
