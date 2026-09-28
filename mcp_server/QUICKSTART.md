@@ -28,7 +28,7 @@ pip install mcp
 ### 3. From URL
 
 ```bash
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/discopop-project/discopop.git#subdirectory=mcp_server
 ```
 
 ### 4. Direct script

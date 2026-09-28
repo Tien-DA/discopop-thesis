@@ -54,7 +54,7 @@ discopop_mcp_server = "mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://www.discopop.tu-darmstadt.de/"
-Repository = "https://github.com/discopop-tool/discopop"
+Repository = "https://github.com/discopop-project/discopop"
 Documentation = "https://www.discopop.tu-darmstadt.de/"
 
 [tool.setuptools.dynamic]

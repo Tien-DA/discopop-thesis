@@ -57,12 +57,12 @@ pip install discopop_mcp_server
 1. Create a release on GitHub with binary assets
 2. Users install via:
 ```bash
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/discopop-project/discopop.git#subdirectory=mcp_server
 ```
 
 Or pin to specific version:
 ```bash
-pip install git+https://github.com/discopop-tool/discopop.git@v0.1.0#subdirectory=mcp_server
+pip install git+https://github.com/discopop-project/discopop.git@v0.1.0#subdirectory=mcp_server
 ```
 
 **Pros:**
@@ -319,7 +319,7 @@ discopop_mcp_server --help
 
 ### Via Source
 \`\`\`bash
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/discopop-project/discopop.git#subdirectory=mcp_server
 \`\`\`
 
 ## Features
@@ -368,7 +368,7 @@ Track distribution stats:
 curl -s https://pypistats.org/api/packages/discopop_mcp_server/overall | jq .
 
 # GitHub releases
-gh release list --repo discopop-tool/discopop | grep mcp
+gh release list --repo discopop-project/discopop | grep mcp
 
 # Docker pulls (if using Docker Hub)
 # https://hub.docker.com/r/discopoptool/mcp-server/
