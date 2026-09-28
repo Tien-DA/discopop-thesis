@@ -71,7 +71,7 @@ bool DiscoPoP::doInitialization(Module &M) {
     std::cerr << "         Please consider to specify the environment variable "
                  "and rebuild.\n";
     std::cerr << "         "
-                 "https://discopop-project.github.io/discopop/setup/"
+                 "https://tuda-hpclab.github.io/discopop/setup/"
                  "environment_variables/\n\n";
     // define fallback
     setenv("DP_PROJECT_ROOT_DIR", "/", 1);

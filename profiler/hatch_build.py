@@ -80,7 +80,7 @@ def _check_system_dependencies() -> None:
     lines += [
         "",
         "Please refer to the installation instruction for prerequisites discribed in the README.md to prepare your environment and re-run the build.",
-        "GitHub: https://github.com/discopop-project/discopop",
+        "GitHub: https://github.com/tuda-hpclab/discopop",
         "",
     ]
     print("\n".join(lines), file=sys.stderr)

@@ -25,7 +25,7 @@ def parse_args(force_gui: bool = False) -> ProjectManagerArguments:
     # fmt: off
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Enable verbose output.")
-    parser.add_argument("-p", "--project", default=os.getcwd(), help="Path to the projects root folder. Important: it must be possible to create a copy of this folder and compile / execute the copy with the definitions from compile.sh, execute.sh, and settings.json. Please refer to the wiki pages (https://discopop-project.github.io/discopop/) for further details. Default: $(cwd)")
+    parser.add_argument("-p", "--project", default=os.getcwd(), help="Path to the projects root folder. Important: it must be possible to create a copy of this folder and compile / execute the copy with the definitions from compile.sh, execute.sh, and settings.json. Please refer to the wiki pages (https://tuda-hpclab.github.io/discopop/) for further details. Default: $(cwd)")
     parser.add_argument("--init", action="store_true", help="Initialize the .discopop directory in the specified project path")
     parser.add_argument("--gui", action="store_true", help="Open the graphical configuration manager")
     parser.add_argument("-x", "--execute", default="tiny", help="Comma separated list of configurations to be executed. Format: <config_name>[:<mode>][:<thread_count>] . Modes: dp,hd,seq,par. Default: tiny")

@@ -9,7 +9,7 @@
 # directory for details.
 
 # This script is based on a script from the discopop project
-# https://github.com/discopop-project/discopop
+# https://github.com/tuda-hpclab/discopop
 
 SCRIPT_PATH="$(readlink -fm "$0")"
 LIBS_DIR="$(dirname ${SCRIPT_PATH})"
