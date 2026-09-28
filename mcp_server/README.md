@@ -107,7 +107,7 @@ Writes a build script for a project. Must use `$CC` / `$CXX` and `$CFLAGS` / `$C
 - `config_name` (string, optional): Write a per-configuration override instead of the shared script
 - `purpose` (string, optional): `execute` (default) writes `compile.sh`; `validate` writes `compile_validate.sh`, a separate build for `validate.sh`
 
-A `compile_validate.sh` is only relevant when the configuration also has a `validate.sh`; the response reports which configurations it is `used_by` and which it is `ignored_for`. See the [project manager documentation](https://discopop-project.github.io/discopop/Tools/Project_manager/) for the full resolution order.
+A `compile_validate.sh` is only relevant when the configuration also has a `validate.sh`; the response reports which configurations it is `used_by` and which it is `ignored_for`. See the [project manager documentation](https://tuda-hpclab.github.io/discopop/Tools/Project_manager/) for the full resolution order.
 
 **Example:**
 ```json
@@ -312,7 +312,7 @@ The default (`discopop_mcp_server`) uses **stdio** for communication with Claude
 
 Include in your DiscoPoP repository:
 ```bash
-pip install git+https://github.com/discopop-project/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/tuda-hpclab/discopop.git#subdirectory=mcp_server
 ```
 
 ### Method 3: Bundled Binary
@@ -399,4 +399,4 @@ This software is part of DiscoPoP and is licensed under the 3-Clause BSD License
 For issues, questions, or contributions:
 - Email: discopop@lists.parallel.informatik.tu-darmstadt.de
 - Website: https://www.discopop.tu-darmstadt.de/
-- Repository: https://github.com/discopop-project/discopop
+- Repository: https://github.com/tuda-hpclab/discopop

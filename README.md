@@ -26,12 +26,12 @@ A more comprehensive overview of DiscoPoP can be found on our [project website](
 
 ## Getting started
 Follow the steps below to install DiscoPoP.
-To setup the [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop) (recommended for general use of the framework), please follow [these steps](https://discopop-project.github.io/discopop/setup/vscx/).
+To setup the [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop) (recommended for general use of the framework), please follow [these steps](https://tuda-hpclab.github.io/discopop/setup/vscx/).
 
-For a brief introduction to the [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop), please follow the [walk-through example](https://discopop-project.github.io/discopop/examples/walk_through_gui/).
-For a brief introduction to the command line tools, please refer to the [tools overview](https://discopop-project.github.io/discopop/Tools) and follow the [command-line walk-through example](https://discopop-project.github.io/discopop/examples/walk_through/).
+For a brief introduction to the [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop), please follow the [walk-through example](https://tuda-hpclab.github.io/discopop/examples/walk_through_gui/).
+For a brief introduction to the command line tools, please refer to the [tools overview](https://tuda-hpclab.github.io/discopop/Tools) and follow the [command-line walk-through example](https://tuda-hpclab.github.io/discopop/examples/walk_through/).
 
-For detailed information on the gathered and stored data as well as the tools themselves, please refer to [data](https://discopop-project.github.io/discopop/Data) and the pages of the individual tools in the [tools overview](https://discopop-project.github.io/discopop/Tools).
+For detailed information on the gathered and stored data as well as the tools themselves, please refer to [data](https://tuda-hpclab.github.io/discopop/Data) and the pages of the individual tools in the [tools overview](https://tuda-hpclab.github.io/discopop/Tools).
 
 ## Installation
 ### Prerequisites
@@ -64,14 +64,14 @@ pip install discopop==5.0.3a1
 
 ### Local installation
 ```
-git clone https://github.com/discopop-project/discopop.git
+git clone https://github.com/tuda-hpclab/discopop.git
 cd discopop
 # installs profiler and python packages
 make
 ```
 
 ### Developer
-If you are interested in installing DiscoPoP as a `developer`, please refer to the [DiscoPoP setup wiki page](https://discopop-project.github.io/discopop/setup/discopop/).
+If you are interested in installing DiscoPoP as a `developer`, please refer to the [DiscoPoP setup wiki page](https://tuda-hpclab.github.io/discopop/setup/discopop/).
 
 ## Example
 The following example instruments and builds the provided example code, analyzes the results, and prints the identified parallelization suggestions to the console.

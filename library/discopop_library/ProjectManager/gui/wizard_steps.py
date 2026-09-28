@@ -91,7 +91,7 @@ You can still proceed with the configuration, but keep this limitation in mind."
             "  • Use $CC / $CXX and $CFLAGS / $CXXFLAGS for all compile commands.\n"
             "  • The script must return exit code 0 on success.\n\n"
             "You can use relative paths as if you are already in the project root.\n"
-            "See the wiki for examples: https://discopop-project.github.io/discopop/"
+            "See the wiki for examples: https://tuda-hpclab.github.io/discopop/"
         )
         hint = ttk.Label(frame, text=hint_text, font=widgets.FONT_BODY, justify=tk.LEFT)
         hint.pack(anchor=tk.W, padx=5, pady=(5, 10))
@@ -261,7 +261,7 @@ You can still proceed with the configuration, but keep this limitation in mind."
             "  • The script must execute the program created by the previously defined compilation.\n"
             "  • The script must return exit code 0 on success.\n\n"
             "You can use relative paths as if you are already in the project root.\n"
-            "See the wiki for examples: https://discopop-project.github.io/discopop/"
+            "See the wiki for examples: https://tuda-hpclab.github.io/discopop/"
         )
         hint = ttk.Label(frame, text=hint_text, font=widgets.FONT_BODY, justify=tk.LEFT)
         hint.pack(anchor=tk.W, padx=5, pady=(0, 10))

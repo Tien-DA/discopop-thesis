@@ -7,7 +7,7 @@ nav_order: 1
 
 # DiscoPoP Setup - Package
 - Proposed method of installation for `users` of DiscoPoP
-- Download the `.deb` package of choice from [releases](https://github.com/discopop-project/discopop/releases).
+- Download the `.deb` package of choice from [releases](https://github.com/tuda-hpclab/discopop/releases).
     - Packages for different targets and configurations might become available in the future
 - Install via a package manager of choice (example: `sudo apt install ./<packagename>.deb`)
 - Uninstall via a package manager of choice (example: `sudo apt remove discopop`)
@@ -21,7 +21,7 @@ nav_order: 1
 
 ## Setup
 ```
-git clone git@github.com:discopop-project/discopop.git
+git clone git@github.com:tuda-hpclab/discopop.git
 cd discopop
 mkdir build
 ```
