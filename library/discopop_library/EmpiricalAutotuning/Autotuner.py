@@ -9,6 +9,7 @@
 import itertools
 import json
 import logging
+from logging import Logger
 import os
 import time
 from typing import List, Set, Tuple, cast
@@ -27,6 +28,9 @@ from discopop_library.EmpiricalAutotuning.optimization.coordinate_descent_combin
 )
 from discopop_library.EmpiricalAutotuning.optimization.evolutionary_combination import execute_evolutionary_combination
 from discopop_library.EmpiricalAutotuning.optimization.greedy_combination import execute_greedy_combination
+from discopop_library.EmpiricalAutotuning.optimization.hotspot_guided_combination import (
+    execute_hotspot_guided_combination,
+)
 from discopop_library.EmpiricalAutotuning.optimization.linear_hotspot_combination import (
     execute_linear_hotspot_combination,
 )
@@ -38,11 +42,13 @@ from discopop_library.EmpiricalAutotuning.optimization.parallel_region_combinati
 )
 from discopop_library.EmpiricalAutotuning.output.intermediate import show_info_stats
 from discopop_library.EmpiricalAutotuning.output.progress import (
+    DebugStatEntry,
     ProgressList,
     ProgressReporter,
     count_outcomes,
     set_active_reporter,
 )
+from discopop_library.PatchApplicator.PatchApplicationResult import clear_application_result
 from discopop_library.EmpiricalAutotuning.priorities import get_prioritized_configurations
 from discopop_library.EmpiricalAutotuning.utils import get_applicable_suggestion_ids, restrict_patterns_to_ids
 from discopop_library.FolderStructure.setup import setup_auto_tuner
@@ -65,16 +71,99 @@ def get_unique_configuration_id() -> int:
     return buffer
 
 
+def report_compile_only_results(
+    auto_tuner_dir: str,
+    debug_stats: List[DebugStatEntry],
+    optimization_time_s: float,
+    progress_reporter: ProgressReporter,
+    logger: Logger,
+) -> None:
+    """Summarize a --compile-only run and write compile_results.json.
+
+    The reference configuration is reported alongside the candidates: when it is the
+    one that does not build, no candidate's failure says anything about its patches,
+    and a consumer (discopop_patch_repair above all) has to stop rather than ask an
+    agent to repair patches for a project that never compiled.
+    """
+    built: List[List[SUGGESTION_ID]] = []
+    failed: List[List[SUGGESTION_ID]] = []
+    not_applied: List[List[SUGGESTION_ID]] = []
+    reference_built = True
+    for entry in debug_stats:
+        suggestions, _, return_code, _, _, _, failed_suggestions = entry
+        if failed_suggestions:
+            not_applied.append(suggestions)
+        elif return_code == 0:
+            built.append(suggestions)
+        else:
+            failed.append(suggestions)
+            if not suggestions:
+                reference_built = False
+
+    print("##############################")
+    print("Compile-only run. No configuration was executed.")
+    if not reference_built:
+        print("The reference configuration itself does not build -- fix the project first.")
+    print("Built: " + str(len(built)))
+    print("Failed to build: " + str(len(failed)))
+    if not_applied:
+        print("Patches not applicable: " + str(len(not_applied)))
+    for suggestions in failed:
+        print("  does not build: " + (str(suggestions) if suggestions else "<reference configuration>"))
+    print("Time: " + str(round(optimization_time_s, 1)) + "s")
+    print("##############################")
+
+    if not reference_built:
+        logger.error("The reference configuration does not build; candidate build failures are inconclusive.")
+
+    with open(os.path.join(auto_tuner_dir, "compile_results.json"), "w+") as f:
+        json.dump(
+            {
+                "reference_built": reference_built,
+                "built": [[int(s) for s in entry] for entry in built],
+                "failed": [[int(s) for s in entry] for entry in failed],
+                "not_applied": [[int(s) for s in entry] for entry in not_applied],
+            },
+            f,
+            sort_keys=True,
+            indent=4,
+        )
+
+    progress_reporter.compile_summary(built, failed, not_applied, optimization_time_s)
+
+
+def write_measurements(auto_tuner_dir: str, debug_stats: List[DebugStatEntry]) -> None:
+    """Persist the full measurement trace so the GUI can redraw a run without repeating it."""
+    with open(os.path.join(auto_tuner_dir, "measurements.json"), "w+") as f:
+        json.dump(
+            [
+                {
+                    "suggestions": [int(s) for s in entry[0]],
+                    "runtime": entry[1],
+                    "return_code": entry[2],
+                    "result_valid": entry[3],
+                    "thread_sanitizer": entry[4],
+                }
+                for entry in debug_stats
+            ],
+            f,
+            indent=4,
+        )
+
+
 def run(arguments: AutotunerArguments) -> None:
     logger.info("Starting discopop autotuner.")
     # ``ProgressList`` emits a structured "measurement" progress event on every
     # append, so all step-based algorithms report progress without any change.
-    debug_stats: List[Tuple[List[SUGGESTION_ID], float, int, bool, bool, str]] = ProgressList()
+    debug_stats: List[DebugStatEntry] = ProgressList()
     statistics_graph = StatisticsGraph()
     statistics_step_num = 0
 
     setup_auto_tuner(os.getcwd())
     auto_tuner_dir = os.path.join(os.getcwd(), "auto_tuner")
+    # a result left over from an earlier apply must not be attributed to this run's
+    # reference measurement, which applies no suggestions at all
+    clear_application_result(os.path.join(arguments.dot_dp_path, "patch_applicator"))
 
     # structured progress channel (stdout @@AT_PROGRESS lines + progress.jsonl)
     progress_reporter = ProgressReporter(arguments.configuration, os.path.join(auto_tuner_dir, "progress.jsonl"))
@@ -94,7 +183,12 @@ def run(arguments: AutotunerArguments) -> None:
         color=reference_configuration.get_statistics_graph_color(),
         shape=NodeShape.BOX,
     )
-    timeout_after = max(3.0, cast(ExecutionResult, reference_configuration.execution_result).runtime * 2)
+    # Derived from the wall clock duration, never from the runtime the candidates
+    # are ranked by: those differ as soon as a configuration reads its execution
+    # time from the program's own output, and a timeout scaled to the *reported*
+    # time would kill every candidate before the part the program does not time
+    # (setup, teardown, file I/O) is even done.
+    timeout_after = max(3.0, cast(ExecutionResult, reference_configuration.execution_result).wall_clock_runtime * 2)
     debug_stats.append(
         (
             [],
@@ -103,6 +197,7 @@ def run(arguments: AutotunerArguments) -> None:
             cast(ExecutionResult, reference_configuration.execution_result).result_valid,
             cast(ExecutionResult, reference_configuration.execution_result).thread_sanitizer,
             reference_configuration.root_path,
+            cast(ExecutionResult, reference_configuration.execution_result).failed_suggestions,
         )
     )
 
@@ -200,6 +295,18 @@ def run(arguments: AutotunerArguments) -> None:
                 debug_stats,
                 get_unique_configuration_id,
             )
+        elif arguments.algorithm == 6:
+            execute_hotspot_guided_combination(
+                detection_result,
+                hotspot_information,
+                logger,
+                time_limit_s,
+                reference_configuration,
+                arguments,
+                timeout_after,
+                debug_stats,
+                get_unique_configuration_id,
+            )
         else:
             execute_measure_only(
                 detection_result,
@@ -228,6 +335,17 @@ def run(arguments: AutotunerArguments) -> None:
 
     optimization_time_s = time.time() - optimization_start_time
 
+    if arguments.compile_only:
+        # Nothing was measured, so there is no best configuration to pick, no speedup to
+        # report and nothing to write to results.json -- which is what "apply the
+        # tuner's result" reads, and which must never name a configuration that was
+        # only ever compiled. The build outcomes are the entire result of this mode.
+        report_compile_only_results(auto_tuner_dir, debug_stats, optimization_time_s, progress_reporter, logger)
+        write_measurements(auto_tuner_dir, debug_stats)
+        progress_reporter.close()
+        set_active_reporter(None)
+        return
+
     # select best option and create code folder
     if arguments.algorithm == 1:
         for stat_entry in sorted(debug_stats, key=lambda x: len(x[0]), reverse=True):
@@ -235,7 +353,17 @@ def run(arguments: AutotunerArguments) -> None:
                 sibling_config = reference_configuration.create_copy(
                     arguments, "par_settings.json", get_unique_configuration_id
                 )
-                sibling_config.apply_suggestions(arguments, stat_entry[0])
+                application = sibling_config.apply_suggestions(arguments, stat_entry[0])
+                if application is not None and application.failure:
+                    # re-applying the winning combination failed, so this folder holds
+                    # the unmodified code; reporting it as the result would claim a
+                    # parallelization that is not in the code
+                    logger.error(
+                        "Could not re-apply the best combination " + str(stat_entry[0]) + ": " + application.summary()
+                    )
+                    if not arguments.skip_cleanup:
+                        sibling_config.deleteFolder()
+                    continue
                 sibling_config.execute(arguments, timeout=timeout_after, thread_count=arguments.thread_count)
                 best_suggestion_configuration = (stat_entry[0], sibling_config)
                 if not arguments.skip_cleanup:
@@ -247,7 +375,17 @@ def run(arguments: AutotunerArguments) -> None:
                 sibling_config = reference_configuration.create_copy(
                     arguments, "par_settings.json", get_unique_configuration_id
                 )
-                sibling_config.apply_suggestions(arguments, stat_entry[0])
+                application = sibling_config.apply_suggestions(arguments, stat_entry[0])
+                if application is not None and application.failure:
+                    # re-applying the winning combination failed, so this folder holds
+                    # the unmodified code; reporting it as the result would claim a
+                    # parallelization that is not in the code
+                    logger.error(
+                        "Could not re-apply the best combination " + str(stat_entry[0]) + ": " + application.summary()
+                    )
+                    if not arguments.skip_cleanup:
+                        sibling_config.deleteFolder()
+                    continue
                 sibling_config.execute(arguments, timeout=timeout_after, thread_count=arguments.thread_count)
                 best_suggestion_configuration = (stat_entry[0], sibling_config)
                 if not arguments.skip_cleanup:
@@ -279,10 +417,12 @@ def run(arguments: AutotunerArguments) -> None:
                 break
 
     # calculate result statistics
-    speedup = (
-        cast(ExecutionResult, reference_configuration.execution_result).runtime
-        / cast(ExecutionResult, best_suggestion_configuration[1].execution_result).runtime
-    )
+    best_runtime = cast(ExecutionResult, best_suggestion_configuration[1].execution_result).runtime
+    if best_runtime > 0:
+        speedup = cast(ExecutionResult, reference_configuration.execution_result).runtime / best_runtime
+    else:
+        # no measurement exists (e.g. every candidate's patches failed to apply)
+        speedup = 1.0
     parallel_efficiency = speedup * (1 / arguments.thread_count)
 
     # show result and statistics
@@ -315,6 +455,7 @@ def run(arguments: AutotunerArguments) -> None:
         results_dict[arguments.configuration]["time"] = cast(
             ExecutionResult, best_suggestion_configuration[1].execution_result
         ).runtime
+        results_dict[arguments.configuration]["not_applied_count"] = count_outcomes(debug_stats)[3]
 
         with open(results_json_path, "w+") as f:
             json.dump(results_dict, f, sort_keys=True, indent=4)
@@ -324,7 +465,14 @@ def run(arguments: AutotunerArguments) -> None:
 
     # emit the final result and persist the full measurement trace so the GUI can
     # (re-)draw the search without re-running the autotuner.
-    valid_count, invalid_count, failed_count = count_outcomes(debug_stats)
+    valid_count, invalid_count, failed_count, not_applied_count = count_outcomes(debug_stats)
+    if not_applied_count:
+        logger.error(
+            str(not_applied_count)
+            + " of "
+            + str(len(debug_stats))
+            + " configurations could not be patched and were therefore not measured."
+        )
     progress_reporter.result(
         best_suggestion_configuration[0],
         speedup,
@@ -334,22 +482,8 @@ def run(arguments: AutotunerArguments) -> None:
         invalid_count,
         failed_count,
         optimization_time_s,
+        not_applied_count=not_applied_count,
     )
-    measurements_path = os.path.join(auto_tuner_dir, "measurements.json")
-    with open(measurements_path, "w+") as f:
-        json.dump(
-            [
-                {
-                    "suggestions": [int(s) for s in entry[0]],
-                    "runtime": entry[1],
-                    "return_code": entry[2],
-                    "result_valid": entry[3],
-                    "thread_sanitizer": entry[4],
-                }
-                for entry in debug_stats
-            ],
-            f,
-            indent=4,
-        )
+    write_measurements(auto_tuner_dir, debug_stats)
     progress_reporter.close()
     set_active_reporter(None)

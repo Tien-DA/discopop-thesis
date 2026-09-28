@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Set, Tuple, cast
 
 from discopop_library.EmpiricalAutotuning.output.bars import search_bar
 from discopop_library.EmpiricalAutotuning.ArgumentClasses import AutotunerArguments
+from discopop_library.EmpiricalAutotuning.output.progress import DebugStatEntry
 from discopop_library.EmpiricalAutotuning.output.intermediate import show_info_stats
 from discopop_library.EmpiricalAutotuning.Classes.CodeConfiguration import CodeConfiguration
 from discopop_library.EmpiricalAutotuning.Classes.ExecutionResult import ExecutionResult
@@ -33,7 +34,7 @@ def execute_measure_only(
     reference_configuration: CodeConfiguration,
     arguments: AutotunerArguments,
     timeout_after: float,
-    debug_stats: List[Tuple[List[SUGGESTION_ID], float, int, bool, bool, str]],
+    debug_stats: List[DebugStatEntry],
     get_unique_configuration_id: Callable[[], int],
 ) -> None:
     # time limited reverse greedy search in hotspot parallelizations
@@ -52,6 +53,13 @@ def execute_measure_only(
         configuration += patterns_by_hotspot_type[HotspotType.MAYBE]
     if "no" in arguments.hotspot_types:
         configuration += patterns_by_hotspot_type[HotspotType.NO]
+    if arguments.search_space is not None:
+        # Ids named in --search-space are measured even when the hotspot loader put them
+        # in no bucket: the caller asked for exactly these, and without this step an
+        # unclassified one would be dropped silently, leaving it out of every result.
+        # (The pattern storage was already restricted to the search space.)
+        classified = {sid for ids in patterns_by_hotspot_type.values() for sid in ids}
+        configuration += sorted(sid for sid in detection_result.patterns.get_pattern_ids() if sid not in classified)
 
     # step 1: identify valid suggestions
     valid: Set[int] = set()
@@ -76,6 +84,7 @@ def execute_measure_only(
                     cast(ExecutionResult, tmp_config.execution_result).result_valid,
                     cast(ExecutionResult, tmp_config.execution_result).thread_sanitizer,
                     tmp_config.root_path,
+                    cast(ExecutionResult, tmp_config.execution_result).failed_suggestions,
                 )
             )
             visited.append(current)

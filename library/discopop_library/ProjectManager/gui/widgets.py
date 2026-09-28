@@ -167,6 +167,29 @@ def create_code_view(parent: tk.Misc, *, wrap: _Wrap = "none") -> tk.Text:
     return text
 
 
+def apply_diff_highlighting(text: tk.Text) -> None:
+    """Colour a unified diff already loaded into a :func:`create_code_view` widget.
+
+    Re-applied over the whole buffer rather than incrementally: a diff view is
+    replaced wholesale whenever the shown patch changes.
+    """
+    for tag in ("diff_add", "diff_remove", "diff_header", "diff_hunk"):
+        text.tag_remove(tag, "1.0", tk.END)
+    content = text.get("1.0", tk.END)
+    for i, line in enumerate(content.split("\n"), start=1):
+        start = str(i) + ".0"
+        end = str(i) + ".end"
+        # the ---/+++ file headers are checked first: they also start with -/+
+        if line.startswith("+++") or line.startswith("---"):
+            text.tag_add("diff_header", start, end)
+        elif line.startswith("+"):
+            text.tag_add("diff_add", start, end)
+        elif line.startswith("-"):
+            text.tag_add("diff_remove", start, end)
+        elif line.startswith("@@"):
+            text.tag_add("diff_hunk", start, end)
+
+
 def create_script_editor(
     parent: tk.Misc,
     *,
