@@ -380,8 +380,13 @@ def _instrument_project(
     if not dp_settings.exists():
         return {"status": "error", "message": "dp_settings.json not found. Run initialize_discopop_directory first."}
 
-    if not force and data_xml.exists():
-        result_mtime = data_xml.stat().st_mtime
+    # Skipped only when the profiling output is current as well. If profiling still has
+    # to run, it needs the instrumented binary -- and a previous call restored the plain
+    # build before returning (`_restore_plain_build`), so skipping here would have
+    # profiling run an uninstrumented program that never writes its dependencies.
+    dyn_deps = profiler_dir / "dynamic_dependencies.txt"
+    if not force and data_xml.exists() and dyn_deps.exists():
+        result_mtime = min(data_xml.stat().st_mtime, dyn_deps.stat().st_mtime)
         if source_mtime is None or source_mtime <= result_mtime:
             return {
                 "status": "skipped",

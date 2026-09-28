@@ -182,6 +182,45 @@ def write_patch_set(patch_generator_path: str, patch_set: PatchSet) -> List[int]
     return patch_set.file_ids
 
 
+def snapshot_patch_dir(patch_generator_path: str, suggestion_id: int) -> Dict[str, bytes]:
+    """The exact bytes of every file in ``patch_generator/<id>/``, for :func:`restore_patch_dir`."""
+    directory = patch_set_dir(patch_generator_path, suggestion_id)
+    snapshot: Dict[str, bytes] = {}
+    for name in sorted(os.listdir(directory)):
+        path = os.path.join(directory, name)
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                snapshot[name] = f.read()
+    return snapshot
+
+
+def restore_patch_dir(patch_generator_path: str, suggestion_id: int, snapshot: Dict[str, bytes]) -> None:
+    """Put ``patch_generator/<id>/`` back exactly as :func:`snapshot_patch_dir` found it.
+
+    Byte for byte, including files a :class:`PatchSet` does not carry (a patch for a file
+    id the mapping does not know), so undoing a rejected candidate cannot change anything
+    else about the directory.
+    """
+    directory = patch_set_dir(patch_generator_path, suggestion_id)
+    staging = directory + ".discopop_patch_repair.staging"
+    if os.path.exists(staging):
+        _remove_tree(staging)
+    os.makedirs(staging)
+    try:
+        for name, content in snapshot.items():
+            with open(os.path.join(staging, name), "wb") as f:
+                f.write(content)
+        for name in os.listdir(directory):
+            path = os.path.join(directory, name)
+            if os.path.isfile(path):
+                os.remove(path)
+        for name in os.listdir(staging):
+            os.replace(os.path.join(staging, name), os.path.join(directory, name))
+    finally:
+        if os.path.exists(staging):
+            _remove_tree(staging)
+
+
 def _remove_tree(path: str) -> None:
     import shutil
 

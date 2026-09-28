@@ -28,6 +28,10 @@ A suggestion whose patch does not build is one the [autotuner](Autotuner.md) can
 
 If the *reference* configuration does not build -- the project without any suggestion applied -- the run stops immediately. No candidate's failure says anything about its patches in that case.
 
+The tool also refuses to run -- `--restore` included -- while any suggestion is applied to the project sources (see the [patch applicator](Patch_applicator.md)). The applicator rolls a suggestion back with the patch that is on disk at that time, so replacing the patch of an applied suggestion would make it impossible to remove, and every candidate would be built on top of the applied code. Roll back first with `discopop_patch_applicator -C`.
+
+A candidate is written to `patch_generator/<id>/` only for its verification build. Whatever ends that build -- a failure, an error, `Ctrl+C` -- the directory is put back byte for byte unless the candidate built, and under `--dry-run` it is put back in every case.
+
 ## The attempt budget
 Two nested dials, and the distinction matters:
 
@@ -55,7 +59,7 @@ The prompt ladder goes from terse to increasingly explicit: the patch and the di
 Every repair costs agent tokens and at least one build, so the default is deliberately narrow:
 
 - `--hotspot-types` defaults to `yes,maybe`. A suggestion classified `NO` contributes negligibly to the runtime, so repairing it spends effort on code that will never be worth parallelizing. Where no hotspot information exists every suggestion counts as `YES` and nothing is skipped.
-- `-s/--suggestions` restricts the run to explicit ids, overriding the hotspot filter.
+- `-s/--suggestions` restricts the run to explicit ids, overriding the hotspot filter. The compile checks build exactly the considered ids, whatever their hotspot type, including suggestions the hotspot loader could not classify.
 - `--max-repairs` stops after a given number of successful repairs.
 - `--dry-run` performs the whole pipeline but leaves `patch_generator/` as it found it. Note that a candidate is still *built* to check it, so a patch file is written and put back; the run ends with the file exactly as it started.
 
@@ -89,10 +93,10 @@ Written to `.discopop/patch_repair/`:
 |------|----------|
 | `results.json` | One record per considered suggestion: status (`ok`, `repaired`, `failed`, `not_applied`, `agent_unreachable`, `skipped`), hotspot type, the files in its patch set and which of them a repair changed, attempts and how many of them went unanswered, backend, model, first error |
 | `progress.jsonl` | The structured event stream, so a finished run can be redisplayed without repeating it |
-| `backups/<id>/` | The patch set as the generator produced it, copied aside before the first overwrite |
+| `backups/<id>/` | The patch set as the generator produced it, copied aside before the first overwrite. `backups/<id>.written` records the digest of the patch set a repair left in place |
 | `attempts/<id>/<n>/` | What was sent, what came back, the extracted and canonicalized patches, and which check rejected them |
 
-Repaired patches replace the originals in `patch_generator/<id>/`, all of a suggestion's files or none of them. `--restore` puts the backups back, so a repair run is always reversible without re-running the patch generator.
+Repaired patches replace the originals in `patch_generator/<id>/`, all of a suggestion's files or none of them. `--restore` puts the backups back, so a repair run is always reversible without re-running the patch generator. A backup belongs to one generation of patches: when the patch generator has rewritten a suggestion's patches since, the next repair replaces the stale backup, and `--restore` leaves the newer patches alone and drops it.
 
 The attempt transcripts are the main surface for judging a repair, and for working on the prompts; they are written unconditionally.
 

@@ -320,8 +320,44 @@ def canonicalize_delta(original: PatchSet, replacements: Dict[int, str]) -> Opti
 
 # Lines of a unified diff that are the diff's own framing rather than file content.
 # In a diff of CRLF files these still end with a plain LF -- the CR belongs to the
-# content lines, where it is part of what is compared.
+# content lines, where it is part of what is compared. A content line starts with
+# " ", "-" or "+", so of these only "---" and "+++" can also be content (a removed
+# "--i;", an added "++count;"); see :func:`_framing_lines`.
 DIFF_FRAMING_PREFIXES = ("---", "+++", "@@", "diff ", "index ", "\\")
+
+
+def _framing_lines(lines: List[str]) -> List[bool]:
+    """For every line of a unified diff, whether it is framing rather than content.
+
+    Everything up to the first hunk header is framing. After it, a "---" line is a file
+    header only when it opens the "---" / "+++" / "@@" triple that starts the next file;
+    any other "---" or "+++" line is a removed or added content line. The hunk headers'
+    line counts are not used for this: an agent's counts are often wrong, while the
+    triple is what ``patch`` itself needs to see.
+    """
+    framing: List[bool] = []
+    seen_hunk = False
+    in_header = False  # inside a recognized file header, up to its first hunk
+    for index, line in enumerate(lines):
+        if line.startswith("@@"):
+            seen_hunk = True
+            in_header = False
+            framing.append(True)
+        elif not seen_hunk or in_header:
+            framing.append(line.startswith(DIFF_FRAMING_PREFIXES))
+        elif line.startswith(("diff ", "index ", "\\")):
+            framing.append(True)
+        elif (
+            line.startswith("---")
+            and index + 2 < len(lines)
+            and lines[index + 1].startswith("+++")
+            and lines[index + 2].startswith("@@")
+        ):
+            in_header = True
+            framing.append(True)
+        else:
+            framing.append(False)
+    return framing
 
 
 def match_line_terminator(patch_text: str, target: Path) -> str:
@@ -341,13 +377,10 @@ def match_line_terminator(patch_text: str, target: Path) -> str:
     if terminator is None or terminator == LF:
         return patch_text
 
+    lines = [line.rstrip("\r") for line in patch_text.splitlines()]
     rebuilt: List[str] = []
-    for line in patch_text.splitlines():
-        stripped = line.rstrip("\r")
-        if stripped.startswith(DIFF_FRAMING_PREFIXES):
-            rebuilt.append(stripped + LF)
-        else:
-            rebuilt.append(stripped + terminator)
+    for line, is_framing in zip(lines, _framing_lines(lines)):
+        rebuilt.append(line + (LF if is_framing else terminator))
     return "".join(rebuilt)
 
 

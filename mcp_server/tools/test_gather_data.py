@@ -216,3 +216,56 @@ class TestGatherDataRestoresThePlainBuild(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInstrumentationSkip(unittest.TestCase):
+    """Instrumentation is skipped only when profiling has nothing left to do either."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self.project_path = self._tmp_dir.name
+        configs_dir = os.path.join(self.project_path, ".discopop", "project", "configs")
+        os.makedirs(os.path.join(configs_dir, CONFIG_NAME))
+        for filename in ["compile.sh", "dp_settings.json"]:
+            with open(os.path.join(configs_dir, filename), "w") as f:
+                f.write("{}\n")
+        self.profiler_dir = os.path.join(self.project_path, ".discopop", "profiler")
+        os.makedirs(self.profiler_dir)
+        with open(os.path.join(self.profiler_dir, "Data.xml"), "w") as f:
+            f.write("<Nodes></Nodes>\n")
+        self.ctx = ToolContext(debug=False)
+        self.compiled = 0
+
+        def fake_execute_configuration(**kwargs: Any) -> Tuple[int, float, str, str]:
+            self.compiled += 1
+            os.makedirs(self.profiler_dir, exist_ok=True)
+            with open(os.path.join(self.profiler_dir, "Data.xml"), "w") as f:
+                f.write("<Nodes></Nodes>\n")
+            return (0, 1.0, "", "")
+
+        patcher = mock.patch.object(gather_data, "execute_configuration", side_effect=fake_execute_configuration)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def tearDown(self) -> None:
+        self._tmp_dir.cleanup()
+
+    def __instrument(self) -> dict[str, Any]:
+        # source_mtime=None: the sources count as unchanged
+        result: dict[str, Any] = gather_data._instrument_project(
+            self.project_path, CONFIG_NAME, 60, False, self.ctx, None
+        )
+        return result
+
+    def test_reinstruments_when_profiling_never_produced_its_output(self) -> None:
+        """A previous call whose profiling failed restored the plain build before returning."""
+        result = self.__instrument()
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(self.compiled, 1)
+
+    def test_skips_when_profiling_output_is_current(self) -> None:
+        with open(os.path.join(self.profiler_dir, "dynamic_dependencies.txt"), "w") as f:
+            f.write("\n")
+        result = self.__instrument()
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(self.compiled, 0)

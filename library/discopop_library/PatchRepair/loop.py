@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from discopop_library.PatchRepair import llm_backends
 from discopop_library.PatchRepair.PatchRepairArguments import PatchRepairArguments
-from discopop_library.PatchRepair.backups import backup_patch_set
+from discopop_library.PatchRepair.backups import backup_patch_set, record_written_patch_set
 from discopop_library.PatchRepair.candidates import Candidate
 from discopop_library.PatchRepair.compilation import CompileCheckError, CompileOutcome, run_compile_check
 from discopop_library.PatchRepair.diagnostics import implicated_file_ids, parse_diagnostics
@@ -48,7 +48,13 @@ from discopop_library.PatchRepair.patching import (
     extract_patches,
     hunk_line_numbers,
 )
-from discopop_library.PatchRepair.patchset import PatchSet, load_patch_set, write_patch_set
+from discopop_library.PatchRepair.patchset import (
+    PatchSet,
+    load_patch_set,
+    restore_patch_dir,
+    snapshot_patch_dir,
+    write_patch_set,
+)
 from discopop_library.PatchRepair.prompts import (
     PromptContext,
     load_pattern_metadata,
@@ -347,18 +353,14 @@ def _one_turn(
         return reject(GATE_PRAGMAS, pragma_failure)
 
     # -- gate 6: does it compile? The only gate that costs a build, so it runs last.
-    written = _stage_for_verification(arguments, original, canonical)
     try:
-        report = run_compile_check(arguments, [suggestion_id])
+        verification = _verify_by_building(arguments, original, canonical)
     except CompileCheckError as error:
-        _restore(arguments, original, written)
         return reject(GATE_COMPILE, "the verification build could not be performed: " + str(error))
 
-    verification = report.outcomes.get(suggestion_id)
     if verification is None or not verification.built:
         stderr = verification.stderr if verification is not None else ""
         _write_text(os.path.join(artifacts, "compile_stderr.txt"), stderr)
-        _restore(arguments, original, written)
         context.diagnostics_text = stderr
         context.diagnostics = parse_diagnostics(stderr, original.targets())
         context.implicated_file_ids = implicated_file_ids(context.diagnostics)
@@ -366,6 +368,31 @@ def _one_turn(
 
     reporter.attempt(suggestion_id, attempt, turn, template, GATE_ACCEPTED, "")
     return True, "", canonical, True
+
+
+def _verify_by_building(
+    arguments: PatchRepairArguments, original: PatchSet, canonical: PatchSet
+) -> Optional[CompileOutcome]:
+    """Build ``canonical`` through the autotuner and return what the compiler said.
+
+    The candidate has to be on disk for that (see :func:`_stage_for_verification`), so
+    every way out of here -- a failed build, a :class:`CompileCheckError`, Ctrl+C during
+    the build or any other error -- puts ``patch_generator/<id>/`` back byte for byte,
+    unless the candidate built. Under ``--dry-run`` even one that built is taken out
+    again right away.
+    """
+    suggestion_id = original.suggestion_id
+    snapshot = snapshot_patch_dir(arguments.patch_generator_path, suggestion_id)
+    keep = False
+    try:
+        _stage_for_verification(arguments, original, canonical)
+        report = run_compile_check(arguments, [suggestion_id])
+        verification = report.outcomes.get(suggestion_id)
+        keep = verification is not None and verification.built and not arguments.dry_run
+        return verification
+    finally:
+        if not keep:
+            restore_patch_dir(arguments.patch_generator_path, suggestion_id, snapshot)
 
 
 def _build_context(
@@ -406,7 +433,7 @@ def _build_context(
     )
 
 
-def _stage_for_verification(arguments: PatchRepairArguments, original: PatchSet, canonical: PatchSet) -> bool:
+def _stage_for_verification(arguments: PatchRepairArguments, original: PatchSet, canonical: PatchSet) -> None:
     """Put the candidate into patch_generator/ so the autotuner builds *it*.
 
     The tuner reads the patches from disk, so a candidate can only be verified by being
@@ -416,12 +443,6 @@ def _stage_for_verification(arguments: PatchRepairArguments, original: PatchSet,
     """
     backup_patch_set(arguments.patch_repair_path, arguments.patch_generator_path, original.suggestion_id)
     write_patch_set(arguments.patch_generator_path, canonical)
-    return True
-
-
-def _restore(arguments: PatchRepairArguments, original: PatchSet, written: bool) -> None:
-    if written:
-        write_patch_set(arguments.patch_generator_path, original)
 
 
 def _write_back(
@@ -430,10 +451,12 @@ def _write_back(
     """Keep the accepted candidate, or put the original back under --dry-run."""
     record.changed_files = canonical.changed_against(original)
     if arguments.dry_run:
-        write_patch_set(arguments.patch_generator_path, original)
+        # The original was already put back right after the verification build.
         logger.info("Suggestion " + str(original.suggestion_id) + " could be repaired; not written (--dry-run).")
         return
-    # Already on disk from the verification build; nothing further to write.
+    # Already on disk from the verification build; nothing further to write. Recorded so
+    # a later backup or restore can tell this set from one the patch generator wrote.
+    record_written_patch_set(arguments.patch_repair_path, arguments.patch_generator_path, original.suggestion_id)
     logger.info(
         "Suggestion "
         + str(original.suggestion_id)

@@ -41,6 +41,9 @@ COMPILE_RESULTS_FILE = "compile_results.json"
 # an empty requested-suggestion list.
 REFERENCE_KEY: List[int] = []
 
+# Passed as -ht when the run is restricted to explicit ids.
+ALL_HOTSPOT_TYPES = "yes,no,maybe"
+
 
 @dataclass
 class CompileOutcome:
@@ -92,6 +95,11 @@ def run_compile_check(
     a list restricts the run via ``--search-space``. Passing a single id is how a
     repair attempt is verified.
     """
+    # The candidates were already selected by hotspot type (or named via --suggestions,
+    # which overrides that filter), so a restricted run must not filter them again: the
+    # tuner would silently skip an explicitly named "no" suggestion or an unclassified
+    # one, and it would never be built or reported.
+    hotspot_types = arguments.hotspot_types if suggestion_ids is None else ALL_HOTSPOT_TYPES
     auto_tuner_dir = os.path.join(arguments.dot_dp_path, "auto_tuner")
     compile_results_path = os.path.join(auto_tuner_dir, COMPILE_RESULTS_FILE)
     # A stale file from an earlier run must never be read as this run's answer.
@@ -110,7 +118,7 @@ def run_compile_check(
         "0",
         "--compile-only",
         "-ht",
-        arguments.hotspot_types,
+        hotspot_types,
         "-t",
         str(arguments.thread_count),
         "--log",
@@ -138,8 +146,12 @@ def run_compile_check(
             + result.stdout[-4000:]
         )
 
-    with open(compile_results_path, "r") as f:
-        compile_results = json.load(f)
+    try:
+        with open(compile_results_path, "r") as f:
+            compile_results = json.load(f)
+    except (OSError, json.JSONDecodeError) as error:
+        # A partially written file (the tuner was killed mid-write) is no answer either.
+        raise CompileCheckError("Could not read " + compile_results_path + ": " + str(error))
 
     diagnostics = read_compile_diagnostics(arguments)
     report = CompileReport(reference_built=bool(compile_results.get("reference_built", True)))

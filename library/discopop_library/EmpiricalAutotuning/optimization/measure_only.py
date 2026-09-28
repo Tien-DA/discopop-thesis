@@ -53,6 +53,13 @@ def execute_measure_only(
         configuration += patterns_by_hotspot_type[HotspotType.MAYBE]
     if "no" in arguments.hotspot_types:
         configuration += patterns_by_hotspot_type[HotspotType.NO]
+    if arguments.search_space is not None:
+        # Ids named in --search-space are measured even when the hotspot loader put them
+        # in no bucket: the caller asked for exactly these, and without this step an
+        # unclassified one would be dropped silently, leaving it out of every result.
+        # (The pattern storage was already restricted to the search space.)
+        classified = {sid for ids in patterns_by_hotspot_type.values() for sid in ids}
+        configuration += sorted(sid for sid in detection_result.patterns.get_pattern_ids() if sid not in classified)
 
     # step 1: identify valid suggestions
     valid: Set[int] = set()

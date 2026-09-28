@@ -28,6 +28,7 @@ from discopop_library.PatchRepair.PatchRepairArguments import PatchRepairArgumen
 from discopop_library.PatchRepair.backups import restore_patch_sets
 from discopop_library.PatchRepair.candidates import Candidate, collect_candidates
 from discopop_library.PatchRepair.compilation import CompileCheckError, CompileReport, run_compile_check
+from discopop_library.ProjectManager.configurations.execution import read_applied_suggestions
 from discopop_library.PatchRepair.results import (
     STATUS_FAILED,
     STATUS_NOT_APPLIED,
@@ -49,6 +50,18 @@ EXIT_ERROR = 1
 
 def run(arguments: PatchRepairArguments) -> int:
     setup_patch_repair(arguments.dot_dp_path)
+
+    applied = read_applied_suggestions(arguments.dot_dp_path)
+    if applied:
+        # Both a repair and a restore replace patch files, and the applicator rolls a
+        # suggestion back with the patch that is on disk *then*: replacing the patch of
+        # an applied suggestion leaves it impossible to remove. The compile checks would
+        # also build every candidate on top of the already patched sources.
+        print(
+            "ERROR: suggestion(s) " + str(sorted(applied)) + " are currently applied to the project sources.\n"
+            "Roll them back first (discopop_patch_applicator -C), then run the repair again."
+        )
+        return EXIT_ERROR
 
     if arguments.restore:
         restored = restore_patch_sets(arguments.patch_repair_path, arguments.patch_generator_path)
@@ -101,6 +114,12 @@ def _run(
         )
         reporter.discovery([], [], [], reference_built=False)
         return EXIT_ERROR
+
+    unchecked = sorted(c.suggestion_id for c in candidates if c.suggestion_id not in report.outcomes)
+    if unchecked:
+        # Should not happen now that the check is restricted to exactly these ids, but a
+        # candidate without an outcome would otherwise vanish from the run without trace.
+        print("WARNING: the compile check reported nothing for suggestion(s) " + str(unchecked) + ".")
 
     reporter.discovery(
         report.building(),
