@@ -12,7 +12,7 @@
  -->
 
 # DiscoPoP - Discovery of Potential Parallelism
-DiscoPoP is an open-source tool that helps software developers parallelize their programs with threads. It is a joint project of the [Laboratory for Parallel Programming @ TU Darmstadt](https://github.com/tuda-parallel) and the [Software Analytics and Pervasive Parallelism Lab](https://www.cs.iastate.edu/swapp/) at Iowa State University.
+DiscoPoP is an open-source tool that helps software developers parallelize their programs with threads. It is a joint project of the [High-Performance Computing Lab @ TU Darmstadt](https://github.com/tuda-hpclab) and the [Software Analytics and Pervasive Parallelism Lab](https://www.cs.iastate.edu/swapp/) at Iowa State University.
 
 In a nutshell, DiscoPoP performs the following steps:
 * detect parts of the code (computational units or CUs) with little to no internal parallelization potential,
@@ -25,25 +25,25 @@ DiscoPoP is built on top of LLVM. Therefore, DiscoPoP can perform the above-ment
 A more comprehensive overview of DiscoPoP can be found on our [project website](https://www.discopop.tu-darmstadt.de/).
 
 ## Getting started
-Follow the steps in [setup](https://discopop-project.github.io/discopop/setup/discopop/) to install DiscoPoP.
-To setup the [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop) (recommended for general use of the framework), please follow [these steps](https://discopop-project.github.io/discopop/setup/vscx/).
+Follow the steps in [setup](https://tuda-hpclab.github.io/discopop/setup/discopop/) to install DiscoPoP.
+To setup the [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop) (recommended for general use of the framework), please follow [these steps](https://tuda-hpclab.github.io/discopop/setup/vscx/).
 
-For a brief introduction to the [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop), please follow the [walk-through example](https://discopop-project.github.io/discopop/examples/walk_through_gui/).
-For a brief introduction to the command line tools, please refer to the [tools overview](https://discopop-project.github.io/discopop/Tools) and follow the [command-line walk-through example](https://discopop-project.github.io/discopop/examples/walk_through/).
+For a brief introduction to the [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop), please follow the [walk-through example](https://tuda-hpclab.github.io/discopop/examples/walk_through_gui/).
+For a brief introduction to the command line tools, please refer to the [tools overview](https://tuda-hpclab.github.io/discopop/Tools) and follow the [command-line walk-through example](https://tuda-hpclab.github.io/discopop/examples/walk_through/).
 
-For detailed information on the gathered and stored data as well as the tools themselves, please refer to [data](https://discopop-project.github.io/discopop/Data) and the pages of the individual tools in the [tools overview](https://discopop-project.github.io/discopop/Tools).
+For detailed information on the gathered and stored data as well as the tools themselves, please refer to [data](https://tuda-hpclab.github.io/discopop/Data) and the pages of the individual tools in the [tools overview](https://tuda-hpclab.github.io/discopop/Tools).
 
 ## Installation
-To simplify the setup we provide a Debian package via the [Release Assets](https://github.com/discopop-project/discopop/releases/latest).
+To simplify the setup we provide a Debian package via the [Release Assets](https://github.com/tuda-hpclab/discopop/releases/latest).
 
 ## TL;DR - Example
-If you are interested in installing DiscoPoP as a `developer`, please refer to the [DiscoPoP setup wiki page](https://discopop-project.github.io/discopop/setup/discopop/).
+If you are interested in installing DiscoPoP as a `developer`, please refer to the [DiscoPoP setup wiki page](https://tuda-hpclab.github.io/discopop/setup/discopop/).
 
 The following example installs DiscoPoP for `users`, instruments and builds the provided example, analyzes the results, and prints the identified parallelization suggestions to the console.
-In case any issues arise during the process, please refer to the detailed [setup instructions](https://discopop-project.github.io/discopop/Setup), contact us via GitHub messages, or get in contact by mail to [discopop-support@lists.parallel.informatik.tu-darmstadt.de](mailto:discopop-support@lists.parallel.informatik.tu-darmstadt.de).
+In case any issues arise during the process, please refer to the detailed [setup instructions](https://tuda-hpclab.github.io/discopop/Setup), contact us via GitHub messages, or get in contact by mail to [discopop-support@lists.parallel.informatik.tu-darmstadt.de](mailto:discopop-support@lists.parallel.informatik.tu-darmstadt.de).
 
 ### Prerequisites
-- Download and install `.deb` package from [latest Release](https://github.com/discopop-project/discopop/releases/latest).
+- Download and install `.deb` package from [latest Release](https://github.com/tuda-hpclab/discopop/releases/latest).
 - Install the [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=TUDarmstadt-LaboratoryforParallelProgramming.discopop)
 ### Example
 Instrument and execute the code.
