@@ -264,7 +264,11 @@ def run_agent(
         return result
     result.seconds = time.time() - started
 
-    if result.returncode not in (0, None) and not result.timed_out and next(iter_json_objects(result.raw), None) is None:
+    if (
+        result.returncode not in (0, None)
+        and not result.timed_out
+        and next(iter_json_objects(result.raw), None) is None
+    ):
         # A failed exit with no event stream at all is the agent refusing the call --
         # an unknown flag, a removed subcommand -- and what it printed is its usage
         # text, not an answer. Handed to the extractor, every such call was recorded
