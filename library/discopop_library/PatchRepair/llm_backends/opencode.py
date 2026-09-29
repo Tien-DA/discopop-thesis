@@ -10,7 +10,7 @@
 
 Only its one-shot mode is used:
 
-    opencode run --format json [-m <provider>/<model>] [--session <id>] -- "<prompt>"
+    cd <dir> && opencode run --format json [-m <provider>/<model>[#<variant>]] [--session <id>] -- "<prompt>"
 
 Notes on the flags, because each one is load-bearing:
 
@@ -30,7 +30,6 @@ Notes on the flags, because each one is load-bearing:
 Credentials are never handled here -- ``opencode`` owns provider authentication.
 """
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from discopop_library.PatchRepair.llm_backends.base import (
@@ -51,7 +50,7 @@ DESCRIPTION = (
     "The opencode CLI (https://opencode.ai). Talks to any provider it is authenticated "
     "for, including self-hosted OpenAI-compatible endpoints declared in its own "
     "configuration.\n\n"
-    "Providers and models are configured in opencode itself ('opencode providers'), "
+    "Providers and models are configured in opencode itself ('opencode auth'), "
     "never in DiscoPoP."
 )
 
@@ -64,13 +63,17 @@ DEFAULT_BINARY = "opencode"
 # worth warning about.
 MODELS_ARE_EXHAUSTIVE = True
 
-INSTALL_HINT = "See https://opencode.ai for installation, then authenticate a provider with 'opencode providers'."
-AUTH_HINT = "Check the model name and that its provider is authenticated ('opencode providers')."
+INSTALL_HINT = "See https://opencode.ai for installation, then authenticate a provider with 'opencode auth login'."
+AUTH_HINT = "Check the model name and that its provider is authenticated ('opencode auth list')."
 
 FIELDS = (
     FieldSpec("agent", "Agent", "opencode agent to drive; empty uses opencode's default", default=""),
-    FieldSpec("model_variant", "Reasoning effort", "provider-specific model variant, e.g. high or max (optional)"),
-    FieldSpec("attach", "Attach to server", "URL of a running opencode server (optional)"),
+    FieldSpec(
+        "model_variant",
+        "Reasoning effort",
+        "provider-specific model variant, e.g. high or max (optional); sent as <model>#<variant>",
+    ),
+    FieldSpec("attach", "Attach to server", "URL of a running opencode server (optional); sent as --server"),
     FieldSpec(
         "auto",
         "Approve tool use",
@@ -140,21 +143,24 @@ def build_argv(
     if session:
         argv += ["--session", str(session)]
     model = str(profile.get("model") or "").strip()
+    # opencode 2.x folded --variant into the model name.
+    model_variant = str(option(profile, "model_variant") or "").strip()
+    if model and model_variant and "#" not in model:
+        model = model + "#" + model_variant
     if model:
         argv += ["-m", model]
     agent = str(option(profile, "agent") or "").strip()
     if agent:
         argv += ["--agent", agent]
-    model_variant = str(option(profile, "model_variant") or "").strip()
-    if model_variant:
-        argv += ["--variant", model_variant]
     attach = str(option(profile, "attach") or "").strip()
     if attach:
-        argv += ["--attach", attach]
+        # --attach in opencode 1.x.
+        argv += ["--server", attach]
     if option(profile, "auto", False):
         argv += ["--auto"]
-    if cwd is not None:
-        argv += ["--dir", str(Path(cwd))]
+    # No --dir: opencode 2.x removed it (and rejects the whole command line when it is
+    # given) and works in the directory it is started in, which ``run_agent`` sets --
+    # both the process directory and $PWD, which is what opencode actually reads.
     argv += [str(a) for a in (profile.get("extra_args") or [])]
     # The prompt is the positional message, after "--" so one that happens to start
     # with a dash is not parsed as an option.
@@ -186,9 +192,15 @@ def parse_events(raw: str) -> Dict[str, Any]:
                 text = text_of(node.get("content") or node.get("parts") or node.get("text"))
                 if text.strip():
                     texts.append(text)
-            elif node.get("type") == "text" and isinstance(node.get("text"), str):
+            elif (
+                node.get("type") == "text"
+                and isinstance(node.get("text"), str)
+                and (node.get("id") or node.get("messageID"))
+            ):
                 # A bare text part outside a message envelope; kept because opencode has
-                # emitted the final answer this way.
+                # emitted the final answer this way. Only a *part* (it has an id):
+                # opencode 2.x also nests a tool call's output as id-less
+                # {"type": "text"} items, which are not something the model said.
                 if node["text"].strip():
                     texts.append(node["text"])
 

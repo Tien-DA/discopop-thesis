@@ -231,6 +231,10 @@ def run_agent(
     process_env = os.environ.copy()
     for display_var in GUI_DISPLAY_VARS:
         process_env.pop(display_var, None)
+    # ``cwd=`` changes the directory but not the inherited $PWD, and some agents
+    # (opencode 2.x) take their project directory from $PWD -- so without this the
+    # agent would work in whatever directory DiscoPoP was started from.
+    process_env["PWD"] = str(cwd)
     for layer in (profile.get("env") or {}, env or {}):
         for key, value in layer.items():
             process_env[str(key)] = str(value)
@@ -259,6 +263,24 @@ def run_agent(
         result.seconds = time.time() - started
         return result
     result.seconds = time.time() - started
+
+    if result.returncode not in (0, None) and not result.timed_out and next(iter_json_objects(result.raw), None) is None:
+        # A failed exit with no event stream at all is the agent refusing the call --
+        # an unknown flag, a removed subcommand -- and what it printed is its usage
+        # text, not an answer. Handed to the extractor, every such call was recorded
+        # as a model that answered without a patch, so a broken invocation read
+        # exactly like a model that cannot fix patches.
+        # The last line: usage text comes first and the reason after it
+        # ("ERROR / Unrecognized flag: --dir in command opencode run").
+        lines = [line.strip() for line in (result.raw + "\n" + result.stderr).splitlines() if line.strip()]
+        reason = lines[-1] if lines else ""
+        result.error = (
+            "the agent exited with code "
+            + str(result.returncode)
+            + " without producing an event stream"
+            + (": " + reason if reason else "")
+        )
+        return result
 
     try:
         parsed = backend.parse_events(result.raw)
