@@ -107,7 +107,7 @@ try:
     from discopop_gui.Enums.EdgeType import EdgeType as TreeEdgeType
     from discopop_gui.Extendables.Plottable import Plottable
     from discopop_gui.Visualizers.Base import Base as Visualizer
-    from discopop_gui.Objects.Canvases.Viewables.WithTrees import WithTrees as ViewableCanvasWithTrees
+    from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 except (ImportError, ModuleNotFoundError):
 
     class Plottable:  # type: ignore[no-redef]
@@ -118,7 +118,7 @@ except (ImportError, ModuleNotFoundError):
             return False
 
     Visualizer = object  # type: ignore[assignment, misc]
-    ViewableCanvasWithTrees = object  # type: ignore[assignment, misc]
+    CanvasViewerWithTrees = object  # type: ignore[assignment, misc]
 
 logger = logging.getLogger("Explorer")
 
@@ -567,7 +567,7 @@ class TaskGraph(Plottable, object):  # type: ignore[misc]
             labels[node] = node.get_label()
         nx.draw_networkx_labels(ctx_graph, positions, labels, font_size=7, ax=axis)
 
-    def new_plot_context_debug_graph(self, canvas: ViewableCanvasWithTrees) -> None:
+    def new_plot_context_debug_graph(self, canvas: CanvasViewerWithTrees) -> None:
         logger.info("Plotting context debug graph...")
 
         ctx_graph = nx.MultiDiGraph()
@@ -601,7 +601,7 @@ class TaskGraph(Plottable, object):  # type: ignore[misc]
                     edge_type=TreeEdgeType.DEPENDENCY,
                 )
 
-        canvas.build_trees(ctx_graph)
+        canvas.build_initial(ctx_graph)
 
     def __get_or_insert_TGNode(self, pet_node_id: PETNodeID, level: LevelIndex, position: PositionIndex) -> TGNode:
         if pet_node_id is not None:

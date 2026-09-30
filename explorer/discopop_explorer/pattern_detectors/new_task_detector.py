@@ -117,7 +117,7 @@ def show_all_plots(context_task_graph: ContextTaskGraph, highlight_nodes: Option
         # )
 
         context_task_graph.task_graph.new_plot_context_debug_graph(
-            context_task_graph.create_plottable_canvas("Main graph")
+            context_task_graph.create_plottable("Main graph")
         )
 
     def on_filter(filter_text: str) -> None:

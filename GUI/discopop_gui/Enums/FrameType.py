@@ -11,4 +11,4 @@ from enum import Enum, auto
 class FrameType(Enum):
     BASE = auto()
     MULTI_FRAME = auto()
-    CANVAS_VIEWER = auto()
+    CANVAS_VIEWER_WITH_TREES = auto()

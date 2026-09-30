@@ -51,7 +51,7 @@ class MultiFrame(Base):
 
         for frame_data in data["inner_frames"]:
             match FrameType(frame_data["type"]):
-                case FrameType.CANVAS_VIEWER:
+                case FrameType.CANVAS_VIEWER_WITH_TREES:
                     self.create_frame(
                         int(frame_data["row"]),
                         int(frame_data["column"]),

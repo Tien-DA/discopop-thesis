@@ -6,7 +6,7 @@
 # the 3-Clause BSD License.  See the LICENSE file in the package base
 # directory for details.
 
-from typing import List, Tuple, Dict, Set, TYPE_CHECKING
+from typing import List, Tuple, Dict, Set, TYPE_CHECKING, Any
 from copy import deepcopy
 import tkinter as tk
 
@@ -47,6 +47,56 @@ class TreeNode:
         self._canvas.tag_bind(self._text_id, "<Button-1>", self._on_left_press)
         self._canvas.tag_bind(self._text_id, "<Button-3>", self._on_right_press)
 
+    def serialize(self) -> Dict[str, Any]:
+        return {
+            "visible" : self._visible,
+            "higher_order_connections_shown" : self._higher_order_connections_shown,
+            "lower_order_connections_shown" : self._lower_order_connections_shown,
+            "higher_order_main_connection" : {"state" : self._canvas.itemcget(self._higher_order_main_connection.get_canvas_edge_id(), "state"), "data": self._higher_order_main_connection.serialize() } if self._higher_order_main_connection is not None else None,
+            "higher_order_dependency_connections" : {str(higher_order_dependency_connection_id) : {"state" : self._canvas.itemcget(edge_data[0], "state"), "data": [edge.serialize() for edge in edge_data[1]]} for higher_order_dependency_connection_id, edge_data in self._higher_order_dependency_connections.items()},
+            "higher_order_main_hide_request" : self._higher_order_main_hide_request,
+            "lower_order_main_hide_requests" : list(self._lower_order_main_hide_requests),
+            "lower_order_main_x_offset_data" : {str(lower_order_main_connection_id) : (str(x_offset_data[0]), (str(x_offset_data[1][0]), str(x_offset_data[1][1])) if x_offset_data[1] is not None else None) for lower_order_main_connection_id, x_offset_data in self._lower_order_main_x_offset_data.items()},
+            "x_offset" : str(self._x_offset),
+            "y_offset" : str(self._y_offset)
+        }
+
+    def deserialize(self, data : Dict[str, Any]) -> None:
+        self._visible = data["visible"]
+
+        if self._visible == True:
+            self._canvas.itemconfigure(self._oval_id, state = "normal")
+            self._canvas.itemconfigure(self._text_id, state = "normal")
+        else:
+            self._canvas.itemconfigure(self._oval_id, state = "hidden")
+            self._canvas.itemconfigure(self._text_id, state = "hidden")
+
+        self._higher_order_connections_shown = data["higher_order_connections_shown"]
+        self._lower_order_connections_shown = data["lower_order_connections_shown"]
+
+        if data["higher_order_main_connection"] is not None:
+            self._higher_order_main_connection = self._canvas.create_visual_main_edge(self._base_node.id, self._base_node.id, state = data["higher_order_main_connection"]["state"])
+            self._higher_order_main_connection.deserialize(data["higher_order_main_connection"]["data"], lambda x: int(x))
+            self._canvas.get_visual_node(self._higher_order_main_connection.get_source_node_id())._lower_order_main_connections[self._base_node.id] = self._higher_order_main_connection
+
+        for higher_order_dependency_connection_id, edge_data in data["higher_order_dependency_connections"].items():
+            canvas_edge_id = self._canvas.create_visual_dependency_edge(self._base_node.id, self._base_node.id, state = edge_data["state"])
+            self._higher_order_dependency_connections[int(higher_order_dependency_connection_id)] = (canvas_edge_id, [])
+
+            for edge_serialized in edge_data["data"]:
+                edge = DependencyEdge[int](0, 0, 0)
+                edge.deserialize(edge_serialized, lambda x: int(x))
+                self._higher_order_dependency_connections[int(higher_order_dependency_connection_id)][1].append(edge)
+
+            self._canvas.get_visual_node(int(higher_order_dependency_connection_id))._lower_order_dependency_connections[self._base_node.id] = self._higher_order_dependency_connections[int(higher_order_dependency_connection_id)]
+
+        self._higher_order_main_hide_request = data["higher_order_main_hide_request"]
+        self._lower_order_main_hide_requests = set(int(lower_order_main_id) for lower_order_main_id in data["lower_order_main_hide_requests"])
+        self._lower_order_main_x_offset_data = {int(lower_order_main_connection_id) : (int(x_offset_data[0]), (int(x_offset_data[1][0]), int(x_offset_data[1][1])) if x_offset_data[1] is not None else None) for lower_order_main_connection_id, x_offset_data in data["lower_order_main_x_offset_data"].items()}
+        self._x_offset = int(data["x_offset"])
+        self._y_offset = int(data["y_offset"])
+        self._canvas.tag_lower("tree_edge", "tree_node")
+        
     def _on_show_or_hide_higher_order(self, _ : tk.Event) -> str | None:
         if (self._higher_order_main_connection is None) and (self._base_node.higher_order_main_connection is not None):
             base_node_connection = self._base_node.higher_order_main_connection

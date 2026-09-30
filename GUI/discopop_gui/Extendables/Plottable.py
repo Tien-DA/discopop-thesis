@@ -6,12 +6,13 @@
 # the 3-Clause BSD License.  See the LICENSE file in the package base
 # directory for details.
 
-from typing import Callable, List
+from typing import Callable, Dict, List, Tuple
 import tkinter as tk
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk  # type: ignore
 from matplotlib.figure import Figure
 
+from GUI.discopop_gui.utils.TreeNode import TreeNode
 from discopop_gui.Visualizers.Base import Base
 from discopop_gui.Objects.Frames.Base import Base as BaseFrame
 from discopop_gui.Objects.Frames.MultiFrame import MultiFrame
@@ -98,23 +99,19 @@ class Plottable:
         frame.grid_columnconfigure(0, weight=1)
         return axes
 
-    def create_plottable_canvas(self, name: str) -> ViewableCanvasWithTrees:
+    def create_plottable(self, name: str) -> CanvasViewerWithTrees:
         if self._visualizer is None:
             raise VisualizerNotDefined()
-        
-        def canvas_builder(parent : tk.Frame, canvas_viewer : CanvasViewerWithTrees, canvas_viewer_mode : CanvasViewerMode) -> ViewableCanvasWithTrees:
-            return ViewableCanvasWithTrees(parent, canvas_viewer, canvas_viewer_mode, bg = "white")
         
         def frame_builder(parent : tk.Misc) -> CanvasViewerWithTrees:
             return CanvasViewerWithTrees(parent)
 
         frame = self._visualizer.create_frame(name, frame_builder)
-        canvas = frame.get_canvas(frame.add_canvas(canvas_builder))
 
         frame.grid_rowconfigure(0, weight = 1)
         frame.grid_columnconfigure(0, weight = 1)
 
-        return canvas
+        return frame
 
     def create_multi_plot(self, name: str, inner_plot_titles: list[str], rows: int, columns: int) -> list[Axes]:
         frame = self.create_multi_frame(name, rows, columns)

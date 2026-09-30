@@ -17,11 +17,10 @@ from discopop_gui.Objects.CanvasItems.Popup import Popup
 
 
 class Base(tk.Canvas):
-    def __init__(self, parent: tk.Misc, viewer_mode: ViewerMode, serializable : bool = True, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, parent: tk.Misc, viewer_mode: ViewerMode, *args: Any, **kwargs: Any) -> None:
         super().__init__(parent, *args, **kwargs)
 
         self._viewer_mode = viewer_mode
-        self._serializable = serializable
 
         self._original_coordinates : dict[int, tuple[float, ...]] = {}
         self._transform_scale : float = 1
@@ -293,9 +292,6 @@ class Base(tk.Canvas):
 
     def get_viewer_mode(self) -> ViewerMode:
         return self._viewer_mode
-
-    def get_serializable(self) -> bool:
-        return self._serializable
     
     def coords_unscaled(self, item_id: int, *coords: float) -> None:
         self._original_coordinates[item_id] = tuple(coords)
@@ -387,5 +383,5 @@ class Base(tk.Canvas):
     def serialize(self) -> Dict[str, Any]:
         return {}
 
-    def deserialize(self, _ : Dict[str, Any]) -> None:
+    def deserialize(self, data: Dict[str, Any]) -> None:
         pass

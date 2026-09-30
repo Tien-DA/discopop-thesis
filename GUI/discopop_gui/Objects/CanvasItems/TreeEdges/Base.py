@@ -6,7 +6,7 @@
 # the 3-Clause BSD License.  See the LICENSE file in the package base
 # directory for details.
 
-from typing import Generic
+from typing import Generic, Callable
 
 from discopop_gui.Types.T import T
 
@@ -20,3 +20,13 @@ class Base(Generic[T]):
 
     def get_target_node_id(self) -> T:
         return self._target_node_id
+
+    def serialize(self) -> dict:
+        return {
+            "source_node_id" : str(self._source_node_id),
+            "target_node_id" : str(self._target_node_id)
+        }
+
+    def deserialize(self, data: dict, converter: Callable[[str], T]) -> None:
+        self._source_node_id = converter(data["source_node_id"])
+        self._target_node_id = converter(data["target_node_id"])

@@ -144,7 +144,7 @@ class WithSidebar(Base):
         with open(file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
             match FrameType(data["type"]):
-                case FrameType.CANVAS_VIEWER:
+                case FrameType.CANVAS_VIEWER_WITH_TREES:
                     canvas_frame_with_trees = self.create_frame(data["frame_name"], CanvasViewerWithTrees)
                     canvas_frame_with_trees.deserialize(data["data"])
                 case FrameType.MULTI_FRAME:
