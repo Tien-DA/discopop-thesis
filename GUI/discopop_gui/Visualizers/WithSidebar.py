@@ -19,7 +19,7 @@ from discopop_gui.Enums.FrameType import FrameType
 from discopop_gui.ClassMaps.Frames import FramesMap
 from discopop_gui.Objects.Frames.Base import Base as FrameBase
 from discopop_gui.Objects.Frames.MultiFrame import MultiFrame
-from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
+from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class WithSidebar(Base):
     def __init__(self, visualize_on : Optional[tk.Frame] = None) -> None:
