@@ -51,6 +51,11 @@ This document contains critical information about working with this codebase. Fo
 ### Python end-to-end tests
 - to execute the python end-to-end tests, use 'venv/bin/python -m unittest -v -k "*.end_to_end.*"'
 
+### Python unit tests (discopop_library)
+- `discopop_library` (`library/discopop_library`) has pytest-based unit tests colocated with the source as `test_*.py` files
+- to run them, from the repository root: `venv/bin/python -m pytest library/discopop_library`
+- run them separately from the explorer's tests: both roots in one pytest run abort with an import file mismatch
+
 ### Python unit tests (discopop_explorer)
 - the `discopop_explorer` package (`explorer/discopop_explorer`) has pytest-based unit tests colocated with the source as `test_*.py` files (e.g. `explorer/discopop_explorer/utilities/ASTUtils/test_ASTQueries.py`, `explorer/discopop_explorer/test_utils.py`, `explorer/discopop_explorer/pattern_detectors/test_do_all_detector.py`)
 - install prerequisites via `venv/bin/pip install pytest pytest-cov`
@@ -87,6 +92,12 @@ You can execute a full example by following the steps below. The example should 
 - execute profiling via `cd example && ./a.out`
 - execute pattern analysis via `cd example/.discopop && ../../venv/bin/discopop_explorer`
 - check for existing parallelization suggestions by checking for created patch files in example/.discopop/patch_generator
+
+### Measured execution time
+- by default, a configuration's runtime is the wall clock time of its `execute.sh`; a program printing its own timing can have that value measured instead (see `docs/tools/Project_manager.md`, section "Measured runtime")
+- the setting is stored per configuration in `.discopop/project/configs/<config>/execution_time.json` and edited in the GUI under Editor -> execute.sh; `--execution-time-regex` (on both `discopop_project_manager` and `discopop_auto_tuner`) overrides it for one run
+- the extraction lives in `library/discopop_library/ProjectManager/configurations/execution_time.py`; only `execute.sh` call sites pass a pattern, so `compile.sh` / `validate.sh` keep their wall clock times
+- `execution_results.json` entries carry `wall_clock_time` and `time_source` next to `time`; `time` always holds the measurement of interest, so reports, plots, the auto-tuner and the benchmark harnesses need no change
 
 ### Excecute CI Pipeline locally
 To execute the CI pipeline locally, use the following command from the root folder: `scripts/dev/run_ci_locally.sh`.

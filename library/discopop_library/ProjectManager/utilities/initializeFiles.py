@@ -24,9 +24,9 @@ initial_script_content = """#!/bin/bash
 # You can use relative paths as if you are already in the project root.
 #
 # The scripts need to make use of CC / CXX and the according flags CFLAGS / CXXFLAGS and return 0 upon successful execution.
-# Please set the contents of the script according to the wiki: https://discopop-project.github.io/discopop/
+# Please set the contents of the script according to the wiki: https://tuda-hpclab.github.io/discopop/
 
-echo "Please set the contents of the script according to the wiki: https://discopop-project.github.io/discopop/"
+echo "Please set the contents of the script according to the wiki: https://tuda-hpclab.github.io/discopop/"
 echo "The scripts need to make use of CC / CXX and the according flags CFLAGS / CXXFLAGS and return 0 upon successful execution."
 echo "Document: $(realpath $0)"
 exit 1

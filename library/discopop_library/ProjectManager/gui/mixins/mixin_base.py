@@ -48,6 +48,16 @@ class ConfigManagerMixinBase:
     compile_override_button: RoundedButton
     validate_script_button: RoundedButton
     validation_compile_override_button: RoundedButton
+    # Execution time setting of execute.sh (stored per configuration in
+    # execution_time.json). Not a text area, hence its own dirty flag.
+    execution_time_enabled_var: tk.BooleanVar
+    execution_time_regex_var: tk.StringVar
+    execution_time_regex_entry: ttk.Entry
+    execution_time_test_button: RoundedButton
+    execution_time_test_label: ttk.Label
+    execution_time_modified: bool
+    _execution_time_traced: bool
+    _execution_time_loading: bool
 
     # Pattern Detection tab
     pattern_detection_tab_index: int
@@ -59,11 +69,13 @@ class ConfigManagerMixinBase:
     mode_vars: Dict[str, tk.BooleanVar]
     mode_checkbuttons: Dict[str, ttk.Checkbutton]
     thread_var: tk.IntVar
+    execution_repetitions_var: tk.IntVar
     label_prefix_var: tk.StringVar
     timeout_execution_var: tk.IntVar
     timeout_compilation_var: tk.IntVar
     timeout_validation_var: tk.IntVar
     log_level_var: tk.StringVar
+    execution_time_summary_label: ttk.Label
     inplace_var: tk.BooleanVar
     skip_cleanup_var: tk.BooleanVar
     run_button: RoundedButton
@@ -126,6 +138,22 @@ class ConfigManagerMixinBase:
     autotuning_log_level_var: Optional[tk.StringVar]
     autotuning_suggestions_label: Optional[ttk.Label]
     autotuning_tab_index: int
+
+    # Patch Repair panel elements
+    patch_repair_running: bool
+    patch_repair_tab_index: int
+    patch_repair_output_text: Optional[scrolledtext.ScrolledText]
+    patch_repair_run_button: Optional[RoundedButton]
+    patch_repair_stop_button: Optional[RoundedButton]
+    patch_repair_config_label: Optional[ttk.Label]
+    patch_repair_hotspot_types_vars: Optional[Dict[str, tk.BooleanVar]]
+    patch_repair_backend_var: Optional[tk.StringVar]
+    patch_repair_model_var: Optional[tk.StringVar]
+    patch_repair_prompts_var: Optional[tk.StringVar]
+    patch_repair_retries_var: Optional[tk.StringVar]
+    patch_repair_timeout_var: Optional[tk.StringVar]
+    patch_repair_dry_run_var: Optional[tk.BooleanVar]
+    patch_repair_log_level_var: Optional[tk.StringVar]
     autotuning_suggestions_mode_var: tk.StringVar
     autotuner_search_space_selector: SuggestionSelector
     autotuner_evaluate_selector: SuggestionSelector
@@ -307,6 +335,18 @@ class ConfigManagerMixinBase:
 
     def _update_hotspot_config_display(self) -> None:
         """Refresh the parts of the hotspot panel that depend on the selected config."""
+        ...
+
+    def _build_patch_repair_panel(self, parent: tk.Widget) -> None:
+        """Build the patch repair panel UI."""
+        ...
+
+    def _update_patch_repair_ui(self) -> None:
+        """Enable or disable the patch repair panel based on the available patches."""
+        ...
+
+    def _update_patch_repair_config_display(self) -> None:
+        """Update the configuration display label in the patch repair panel."""
         ...
 
     def _build_autotuning_panel(self, parent: tk.Widget) -> None:
