@@ -18,7 +18,7 @@ from discopop_gui.Objects.CanvasItems.TreeEdges.Main import Main as VisualMainEd
 from discopop_gui.Objects.CanvasItems.TreeEdges.Dependency import Dependency as VisualDependencyEdge
 
 if TYPE_CHECKING:
-    from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
+    from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class WithTrees(Base):
     def __init__(

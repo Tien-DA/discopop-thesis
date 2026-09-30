@@ -225,10 +225,13 @@ class CanvasViewerWithTrees(Base):
         self._saved_canvases_loaders_buttons.clear()
 
         for index in range(len(self._saved_canvases)):
+            def callback() -> None:
+                self._on_saved_canvas_loader_clicked(index)
+                
             button = tk.Button(
                 self._saved_canvases_loaders_frame,
                 text = str(index),
-                command = lambda index = index: self._on_saved_canvas_loader_clicked(index),
+                command = callback,
             )
 
             button.grid(

@@ -7,7 +7,7 @@
 # directory for details.
 
 from collections import deque
-from typing import Generic, Callable
+from typing import Generic, Callable, Dict, Any
 
 from discopop_gui.Types.T import T
 from discopop_gui.Objects.CanvasItems.TreeEdges.Base import Base
@@ -71,14 +71,14 @@ class Dependency(Base[T], Generic[T]):
 
         return dependency
 
-    def serialize(self) -> dict:
+    def serialize(self) ->  Dict[str, Any]:
         output = super().serialize()
         output["highest_common_node_id"] = str(self._highest_common_node_id) if self._highest_common_node_id is not None else None
         output["climbed_source_node_ids"] = [str(node_id) for node_id in self._climbed_source_node_ids]
         output["climbed_target_node_ids"] = [str(node_id) for node_id in self._climbed_target_node_ids]
         return output
 
-    def deserialize(self, data: dict, converter: Callable[[str], T]) -> None:
+    def deserialize(self, data:  Dict[str, Any], converter: Callable[[str], T]) -> None:
         super().deserialize(data, converter)
         self._highest_common_node_id = converter(data["highest_common_node_id"]) if data["highest_common_node_id"] is not None else None
         self._climbed_source_node_ids = deque(converter(node_id) for node_id in data["climbed_source_node_ids"])

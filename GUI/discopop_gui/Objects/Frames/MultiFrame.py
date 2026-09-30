@@ -13,7 +13,7 @@ from discopop_gui.Types.FrameT import FrameT
 from discopop_gui.Enums.FrameType import FrameType
 from discopop_gui.ClassMaps.Frames import FramesMap
 from discopop_gui.Objects.Frames.Base import Base
-from GUI.discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
+from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class MultiFrame(Base):
     def __init__(self, parent: tk.Misc, *args: Any, **kwargs: Any) -> None:
