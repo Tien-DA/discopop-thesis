@@ -6,7 +6,7 @@
 # the 3-Clause BSD License.  See the LICENSE file in the package base
 # directory for details.
 
-from typing import Generic
+from typing import Generic, Callable, Dict, Any
 
 from discopop_gui.Types.T import T
 from discopop_gui.Objects.CanvasItems.TreeEdges.Base import Base
@@ -18,3 +18,10 @@ class Main(Base[T], Generic[T]):
 
     def get_canvas_edge_id(self) -> int:
         return self._canvas_edge_id
+
+    def serialize(self) ->  Dict[str, Any]:
+        output = super().serialize()
+        return output
+
+    def deserialize(self, data:  Dict[str, Any], converter: Callable[[str], T]) -> None:
+        super().deserialize(data, converter)

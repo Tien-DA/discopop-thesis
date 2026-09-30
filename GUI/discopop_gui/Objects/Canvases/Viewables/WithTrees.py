@@ -7,12 +7,10 @@
 # directory for details.
 
 import tkinter as tk
-import networkx as nx
-from typing import Any, Dict, Tuple, List, Set, TYPE_CHECKING
+from typing import Any, Dict, Tuple, List, TYPE_CHECKING
 
 from discopop_gui.Constants import TREE_NODES_SPACING, TREE_NODE_RADIUS
 from discopop_gui.Enums.ViewerMode import ViewerMode
-from discopop_gui.Enums.EdgeType import EdgeType
 from discopop_gui.Objects.Canvases.Viewables.Base import Base
 from discopop_gui.utils.TreeNode import TreeNode
 from discopop_gui.Objects.CanvasItems.TreeNode import TreeNode as VisualTreeNode
@@ -20,24 +18,23 @@ from discopop_gui.Objects.CanvasItems.TreeEdges.Main import Main as VisualMainEd
 from discopop_gui.Objects.CanvasItems.TreeEdges.Dependency import Dependency as VisualDependencyEdge
 
 if TYPE_CHECKING:
-    from discopop_gui.Objects.Frames.CanvasViewer import CanvasViewer
+    from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class WithTrees(Base):
     def __init__(
         self,
         parent : tk.Frame,
-        canvas_viewer : "CanvasViewer[WithTrees]",
+        canvas_viewer : "CanvasViewerWithTrees",
         viewer_mode : ViewerMode,
-        serializable : bool = True,
-        trees : Dict[int, TreeNode] = {},
+        nodes : Dict[int, TreeNode] = {},
         highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]] = [],
         *args : Any,
         **kwargs : Any,
     ) -> None:
-        super().__init__(parent, viewer_mode, serializable, *args, **kwargs)
+        super().__init__(parent, viewer_mode, *args, **kwargs)
         self._canvas_viewer = canvas_viewer
-        self._nodes : Dict[int, TreeNode] = trees
-        self._highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]] = []
+        self._nodes : Dict[int, TreeNode] = nodes
+        self._highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]] = highest_managed_dependencies
         self._visual_nodes : Dict[int, VisualTreeNode] = {}
         self._highest_visual_node_ids : List[int] = []
         self._highest_visual_nodes_x_offset_data : Dict[int, Tuple[int, int, int]] = {}
@@ -208,61 +205,24 @@ class WithTrees(Base):
             tags = "tree_edge"
         )
 
-    
     def add_clone_to_canvas_viewer(self, starting_tree_node_id : int) -> None:
         starting_tree_node = self.get_visual_node(starting_tree_node_id)
 
-        def canvas_builder(parent : tk.Frame, canvas_viewer : "CanvasViewer[WithTrees]", canvas_viewer_mode : ViewerMode) -> "WithTrees":
-            return WithTrees(parent, canvas_viewer, canvas_viewer_mode, False, self._nodes, self._highest_managed_dependencies, bg = self["bg"])
+        def canvas_builder(parent : tk.Frame, canvas_viewer : "CanvasViewerWithTrees", canvas_viewer_mode : ViewerMode, nodes : Dict[int, TreeNode], highest_managed_dependencies : List[Tuple[TreeNode, TreeNode]]) -> "WithTrees":
+            return WithTrees(parent, canvas_viewer, canvas_viewer_mode, nodes, highest_managed_dependencies, bg = self["bg"])
 
         cloned_canvas = self._canvas_viewer.get_canvas(self._canvas_viewer.add_canvas(canvas_builder))
         starting_tree_node.recursive_copy_to_canvas(cloned_canvas)
         cloned_canvas.update_visual_node_offsets()
 
-    def build_trees(self, graph: nx.MultiDiGraph) -> None:
+    def build_initial(self) -> None:
         self.delete("all")
-        self._nodes.clear()
-        self._highest_managed_dependencies.clear()
         self._visual_nodes.clear()
         self._transform_scale = 1
         self._transform_x = 0.0
         self._transform_y = 0.0
         self._highest_visual_node_ids.clear()
         self._highest_visual_nodes_x_offset_data.clear()
-
-        nodes_to_ids : Dict[Any, int] = {}
-
-        for node in graph.nodes:
-            node_id = len(self._nodes)
-            nodes_to_ids[node] = node_id
-            self._nodes[node_id] = TreeNode(node_id)
-
-            self._nodes[node_id].metadata.update(
-                {
-                    "label": node.get_label(),
-                    "fill": "cyan"
-                }
-            )
-
-        seen_edges : Set[Tuple[int, int]] = set()
-        dependency_edges : List[Tuple[int, int]] = []
-        
-        for source, destination, data in graph.edges(data = True):
-            source_node_id = nodes_to_ids[source]
-            destination_node_id = nodes_to_ids[destination]
-
-            if (source_node_id, destination_node_id) in seen_edges:
-                continue
-            
-            if data.get("edge_type") == EdgeType.DEPENDENCY:
-                dependency_edges.append((source_node_id, destination_node_id))
-            elif data.get("edge_type") == EdgeType.MAIN:
-                self._nodes[source_node_id].lower_order_main_connections.append(self._nodes[destination_node_id])
-                self._nodes[destination_node_id].higher_order_main_connection = self._nodes[source_node_id]
-
-            self._nodes[source_node_id].metadata["fill"] = "orange"
-            seen_edges.add((source_node_id, destination_node_id))
-            seen_edges.add((destination_node_id, source_node_id))
 
         for node_id, node in self._nodes.items():
             if node.higher_order_main_connection is not None:
@@ -272,96 +232,11 @@ class WithTrees(Base):
             self.add_highest_visual_node_id(node_id)
             self.request_x_space_by_highest_visual_node(node_id, (0, 0))
 
-        for source_node_id, destination_node_id in dependency_edges:
-            source_height = 0
-            current_node = self._nodes[source_node_id]
-
-            while current_node.higher_order_main_connection is not None:
-                source_height += 1
-                current_node = current_node.higher_order_main_connection
-
-            destination_height = 0
-            current_node = self._nodes[destination_node_id]
-
-            while current_node.higher_order_main_connection is not None:
-                destination_height += 1
-                current_node = current_node.higher_order_main_connection
-
-            current_source_node : TreeNode | None = self._nodes[source_node_id]
-            current_destination_node : TreeNode | None = self._nodes[destination_node_id]
-
-            while current_source_node is not None and source_height > destination_height:
-                current_source_node = self._nodes[current_source_node.id].higher_order_main_connection
-                source_height -= 1
-
-            while current_destination_node is not None and destination_height > source_height:
-                current_destination_node = self._nodes[current_destination_node.id].higher_order_main_connection
-                destination_height -= 1
-
-            while current_source_node is not None and current_destination_node is not None and current_source_node.id != current_destination_node.id:
-                current_source_node = self._nodes[current_source_node.id].higher_order_main_connection
-                current_destination_node = self._nodes[current_destination_node.id].higher_order_main_connection
-
-            if current_source_node is not None and current_destination_node is not None and current_source_node.id == current_destination_node.id:
-                self._nodes[current_source_node.id].managed_dependencies.append((self._nodes[source_node_id], self._nodes[destination_node_id]))
-            else:
-                visual_edge = VisualDependencyEdge[int](source_node_id, destination_node_id, None)
-                current_source_node = self._nodes[source_node_id]
-                current_destination_node = self._nodes[destination_node_id]
-
-                while current_source_node.higher_order_main_connection is not None and visual_edge.climb_source_node_id(current_source_node.higher_order_main_connection.id):
-                    current_source_node = current_source_node.higher_order_main_connection
-
-                while current_destination_node.higher_order_main_connection is not None and visual_edge.climb_target_node_id(current_destination_node.higher_order_main_connection.id):
-                    current_destination_node = current_destination_node.higher_order_main_connection
-
-                self._highest_managed_dependencies.append((self._nodes[source_node_id], self._nodes[destination_node_id]))
-
-        self.update_visual_node_offsets()
-
-    def serialize(self) -> Dict[str, Any]:
-        output = super().serialize()
-
-        output.update({
-            "nodes": {node_id: node.serialize() for node_id, node in self._nodes.items()},
-            "highest_managed_dependencies": [(source_node.id, destination_node.id) for source_node, destination_node in self._highest_managed_dependencies]
-        })
-
-        return output
-
-    def deserialize(self, data: Dict[str, Any]) -> None:
-        self.delete("all")
-        self._nodes.clear()
-        self._highest_managed_dependencies.clear()
-        self._visual_nodes.clear()
-        self._transform_scale = 1
-        self._transform_x = 0.0
-        self._transform_y = 0.0
-        self._highest_visual_node_ids.clear()
-        self._highest_visual_nodes_x_offset_data.clear()
-
-        for node_id_data in data["nodes"].keys():
-            node_id = int(node_id_data)
-            node = TreeNode(node_id)
-            self._nodes[node_id] = node
-
-        for node_id, node in self._nodes.items():
-            node.deserialize(data["nodes"][str(node_id)], self._nodes)
-
-        for node_id, node in self._nodes.items():
-            if node.higher_order_main_connection is not None:
-                continue
+        for source_node, destination_node in self._highest_managed_dependencies:
             
-            self.create_visual_node(node_id)
-            self.add_highest_visual_node_id(node_id)
-            self.request_x_space_by_highest_visual_node(node_id, (0, 0))
-
-        for source_node_id_data, destination_node_id_data in data["highest_managed_dependencies"]:
-            source_node_id = int(source_node_id_data)
-            destination_node_id = int(destination_node_id_data)
-            visual_edge = VisualDependencyEdge[int](source_node_id, destination_node_id, None)
-            current_source_node = self._nodes[source_node_id]
-            current_destination_node = self._nodes[destination_node_id]
+            visual_edge = VisualDependencyEdge[int](source_node.id, destination_node.id, None)
+            current_source_node = self._nodes[source_node.id]
+            current_destination_node = self._nodes[destination_node.id]
 
             while current_source_node.higher_order_main_connection is not None and visual_edge.climb_source_node_id(current_source_node.higher_order_main_connection.id):
                 current_source_node = current_source_node.higher_order_main_connection
@@ -369,6 +244,28 @@ class WithTrees(Base):
             while current_destination_node.higher_order_main_connection is not None and visual_edge.climb_target_node_id(current_destination_node.higher_order_main_connection.id):
                 current_destination_node = current_destination_node.higher_order_main_connection
 
-            self._highest_managed_dependencies.append((self._nodes[source_node_id], self._nodes[destination_node_id]))
+        self.update_visual_node_offsets()
+
+    def serialize(self) -> Dict[str, Any]:
+        output = super().serialize()
+
+        output.update({
+            "visual_nodes" : {node_id : visual_node.serialize() for node_id, visual_node in self._visual_nodes.items()},
+            "highest_visual_node_ids" : self._highest_visual_node_ids.copy(),
+            "highest_visual_nodes_x_offset_data" : self._highest_visual_nodes_x_offset_data.copy()
+        })
+
+        return output
+
+    def deserialize(self, data: Dict[str, Any]) -> None:
+        super().deserialize(data)
+        self._highest_visual_node_ids = [int(id) for id in data["highest_visual_node_ids"]]
+        self._highest_visual_nodes_x_offset_data = {int(node_id) : (int(offset_data[0]), int(offset_data[1]), int(offset_data[2])) for node_id, offset_data in data["highest_visual_nodes_x_offset_data"].items()}
+
+        for node_id in data["visual_nodes"].keys():
+            self.create_visual_node(int(node_id))
+
+        for node_id, visual_node in self._visual_nodes.items():
+            visual_node.deserialize(data["visual_nodes"][str(node_id)])
 
         self.update_visual_node_offsets()

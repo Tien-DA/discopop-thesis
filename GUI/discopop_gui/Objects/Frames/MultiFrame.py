@@ -11,13 +11,9 @@ from typing import Any, Callable, Dict
 
 from discopop_gui.Types.FrameT import FrameT
 from discopop_gui.Enums.FrameType import FrameType
-from discopop_gui.Enums.ViewableCanvasTypes import ViewableCanvasTypes
 from discopop_gui.ClassMaps.Frames import FramesMap
-from discopop_gui.ClassMaps.ViewableCanvases import ViewableCanvasesMap
 from discopop_gui.Objects.Frames.Base import Base
-from discopop_gui.Objects.Frames.CanvasViewer import CanvasViewer
-from discopop_gui.Objects.Canvases.Viewables.Base import Base as ViewableCanvasesBase
-from discopop_gui.Objects.Canvases.Viewables.WithTrees import WithTrees as ViewableCanvasesWithTrees
+from discopop_gui.Objects.Frames.CanvasViewerWithTrees import CanvasViewerWithTrees
 
 class MultiFrame(Base):
     def __init__(self, parent: tk.Misc, *args: Any, **kwargs: Any) -> None:
@@ -40,16 +36,12 @@ class MultiFrame(Base):
         output : Dict[str, Any] = {"inner_frames" : []}
 
         for frame in self._inner_frames:
-            generic_type = ""
-            if isinstance(frame, CanvasViewer):
-                generic_type = frame.get_generic_type_as_string()
 
             output["inner_frames"].append({
                 "type" : FramesMap[frame.__class__.__name__].value,
                 "row" : frame.grid_info()["row"],
                 "column" : frame.grid_info()["column"],
-                "data" : frame.serialize(),
-                "generic_type" : generic_type
+                "data" : frame.serialize()
             })
 
         return output
@@ -59,20 +51,12 @@ class MultiFrame(Base):
 
         for frame_data in data["inner_frames"]:
             match FrameType(frame_data["type"]):
-                case FrameType.CANVAS_VIEWER:
-                    match ViewableCanvasesMap[frame_data["generic_type"]]:
-                        case ViewableCanvasTypes.WITH_TREES:
-                            self.create_frame(
-                                int(frame_data["row"]),
-                                int(frame_data["column"]),
-                                lambda parent: CanvasViewer[ViewableCanvasesWithTrees](parent)
-                            ).deserialize(frame_data["data"])
-                        case _:
-                            self.create_frame(
-                                int(frame_data["row"]),
-                                int(frame_data["column"]),
-                                lambda parent: CanvasViewer[ViewableCanvasesBase](parent)
-                            ).deserialize(frame_data["data"])
+                case FrameType.CANVAS_VIEWER_WITH_TREES:
+                    self.create_frame(
+                        int(frame_data["row"]),
+                        int(frame_data["column"]),
+                        lambda parent: CanvasViewerWithTrees(parent)
+                    ).deserialize(frame_data["data"])
                 case FrameType.MULTI_FRAME:
                     self.create_frame(
                         int(frame_data["row"]),

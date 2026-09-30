@@ -11,5 +11,5 @@ from discopop_gui.Enums.FrameType import FrameType
 FramesMap = {
     "Base" : FrameType.BASE,
     "MultiFrame": FrameType.MULTI_FRAME,
-    "CanvasViewer": FrameType.CANVAS_VIEWER
+    "CanvasViewerWithTrees": FrameType.CANVAS_VIEWER_WITH_TREES
 }
