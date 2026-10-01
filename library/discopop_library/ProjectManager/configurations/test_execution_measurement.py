@@ -95,11 +95,12 @@ def _run(tmp_path: Path, script_body: str, regex: Optional[str]) -> Tuple[float,
 
 
 def test_without_a_pattern_the_wall_clock_time_is_reported(tmp_path: Path) -> None:
-    reported, entry = _run(tmp_path, "echo '<DP_EXEC_TIME>0.001</DP_EXEC_TIME>'\n", None)
+    # far beyond the wall clock time of an echo: a value like 0.001 is hit whenever the run takes 1ms
+    reported, entry = _run(tmp_path, "echo '<DP_EXEC_TIME>98765.4</DP_EXEC_TIME>'\n", None)
     # the program printed a time, but nothing asked for it to be read
     assert entry["time_source"] == TIME_SOURCE_WALL_CLOCK
     assert entry["time"] == entry["wall_clock_time"] == reported
-    assert reported != 0.001
+    assert reported != 98765.4
 
 
 def test_the_time_the_program_reports_replaces_the_wall_clock_time(tmp_path: Path) -> None:

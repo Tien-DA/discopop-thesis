@@ -2736,7 +2736,7 @@ class TaskGraph(Plottable, object):  # type: ignore[misc]
                                             "-> override: ",
                                             dep_type,
                                             source_location,
-                                            check_source_state_id,
+                                            source_state_id,  # the overriding entry differs in its sink state only
                                             sink_location,
                                             check_sink_state_id,
                                         )
@@ -2841,7 +2841,7 @@ class TaskGraph(Plottable, object):  # type: ignore[misc]
                                             "-> override: ",
                                             dep_type,
                                             source_location,
-                                            check_source_state_id,
+                                            source_state_id,  # the overriding entry differs in its sink state only
                                             sink_location,
                                             check_sink_state_id,
                                         )
