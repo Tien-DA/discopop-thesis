@@ -73,6 +73,17 @@ class _FakeStorage:
     def __init__(self, patterns: Sequence[_FakePattern]) -> None:
         self.do_all: List[_FakePattern] = list(patterns)
 
+    # the two PatternStorage lookups the coordinate descent fallback relies on
+
+    def get_pattern_ids(self) -> List[int]:
+        return [pattern.pattern_id for pattern in self.do_all]
+
+    def get_pattern_from_id(self, pattern_id: int) -> _FakePattern:
+        for pattern in self.do_all:
+            if pattern.pattern_id == pattern_id:
+                return pattern
+        raise ValueError("Pattern not found: " + str(pattern_id))
+
 
 class _FakeDetectionResult:
     """A DetectionResult without a PET graph, so containment falls back to line ranges."""
@@ -729,33 +740,40 @@ def _run_driver(
     return debug_stats
 
 
-def test_the_driver_aborts_without_hotspot_results(tmp_path: Any, caplog: Any) -> None:
-    """The algorithm is defined by the hotspot data; guessing instead would be worse."""
+def _assert_fell_back_to_coordinate_descent(debug_stats: List[DebugStatEntry], log: str, reason: str) -> None:
+    """Without usable hotspot data the driver runs coordinate descent (-A 5) instead, and says why
+    at ERROR - the result was not produced by the algorithm that was asked for."""
+    assert "requires hotspot detection results, but " + reason in log
+    assert "Falling back to coordinate descent" in log
+    # coordinate descent considers every suggestion a candidate and measures it
+    assert [(entry[0], entry[1]) for entry in debug_stats] == [([1], 5.0)]
+
+
+def test_the_driver_falls_back_without_hotspot_results(tmp_path: Any, caplog: Any) -> None:
     with caplog.at_level(logging.ERROR):
-        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {})
+        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {(1,): 5.0})
 
-    assert debug_stats == []
-    assert "requires hotspot detection results" in caplog.text
+    _assert_fell_back_to_coordinate_descent(debug_stats, caplog.text, "no hotspot detection results were found")
 
 
-def test_the_driver_aborts_when_the_results_contain_no_loops(tmp_path: Any, caplog: Any) -> None:
+def test_the_driver_falls_back_when_the_results_contain_no_loops(tmp_path: Any, caplog: Any) -> None:
     _hotspots_on_disk(tmp_path, [_json_region(1, 100, "YES", [1.0, 5.0], typ="FUNCTION")])
 
     with caplog.at_level(logging.ERROR):
-        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {})
+        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {(1,): 5.0})
 
-    assert debug_stats == []
-    assert "contain no loops" in caplog.text
+    _assert_fell_back_to_coordinate_descent(debug_stats, caplog.text, "the hotspot detection results contain no loops")
 
 
-def test_the_driver_aborts_when_no_suggestion_targets_a_hot_loop(tmp_path: Any, caplog: Any) -> None:
+def test_the_driver_falls_back_when_no_suggestion_targets_a_hot_loop(tmp_path: Any, caplog: Any) -> None:
     _hotspots_on_disk(tmp_path, [_json_region(1, 900, "YES", [1.0, 5.0])])
 
     with caplog.at_level(logging.ERROR):
-        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {})
+        debug_stats = _run_driver(tmp_path, [_FakePattern(1, 1, 100, 110)], {(1,): 5.0})
 
-    assert debug_stats == []
-    assert "no suggestion targets" in caplog.text
+    _assert_fell_back_to_coordinate_descent(
+        debug_stats, caplog.text, "no suggestion targets any of the considered hot loops"
+    )
 
 
 def test_the_driver_records_every_measurement(tmp_path: Any) -> None:

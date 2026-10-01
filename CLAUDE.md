@@ -51,10 +51,18 @@ This document contains critical information about working with this codebase. Fo
 ### Python end-to-end tests
 - to execute the python end-to-end tests, use 'venv/bin/python -m unittest -v -k "*.end_to_end.*"'
 
+### Python unit tests (all)
+- to run all Python unit tests at once, from the repository root: `venv/bin/python -m pytest`
+- this collects `explorer/discopop_explorer`, `library/discopop_library`, `mcp_server`, `hotspot_detection` and `test/project_manager`, as configured in `[tool.pytest.ini_options]` of the root `pyproject.toml`; the CI pipeline runs exactly this
+- the configuration sets `--import-mode=importlib` and puts the source trees on `pythonpath`: with the default import mode, collecting several package roots in one run aborts with an import file mismatch against the copies installed in site-packages
+
 ### Python unit tests (discopop_library)
 - `discopop_library` (`library/discopop_library`) has pytest-based unit tests colocated with the source as `test_*.py` files
 - to run them, from the repository root: `venv/bin/python -m pytest library/discopop_library`
-- run them separately from the explorer's tests: both roots in one pytest run abort with an import file mismatch
+
+### Python unit tests (mcp_server, hotspot_detection)
+- `mcp_server` and `hotspot_detection` have pytest-based unit tests colocated with the source as `test_*.py` files
+- to run them, from the repository root: `venv/bin/python -m pytest mcp_server` and `venv/bin/python -m pytest hotspot_detection`
 
 ### Python unit tests (discopop_explorer)
 - the `discopop_explorer` package (`explorer/discopop_explorer`) has pytest-based unit tests colocated with the source as `test_*.py` files (e.g. `explorer/discopop_explorer/utilities/ASTUtils/test_ASTQueries.py`, `explorer/discopop_explorer/test_utils.py`, `explorer/discopop_explorer/pattern_detectors/test_do_all_detector.py`)
