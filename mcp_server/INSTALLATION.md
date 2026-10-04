@@ -31,7 +31,7 @@ pip install discopop_mcp_server
 
 ```bash
 # Clone the repository
-git clone https://github.com/discopop-tool/discopop.git
+git clone https://github.com/tuda-hpclab/discopop.git
 cd discopop/mcp_server
 
 # Install in development mode
@@ -46,7 +46,7 @@ pip install -e ".[dev]"
 ### Method 3: Install from URL
 
 ```bash
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/tuda-hpclab/discopop.git#subdirectory=mcp_server
 ```
 
 ### Method 4: Manual Installation (Without pip)
@@ -55,7 +55,7 @@ If you prefer not to use pip:
 
 1. Download the repository:
 ```bash
-git clone https://github.com/discopop-tool/discopop.git
+git clone https://github.com/tuda-hpclab/discopop.git
 ```
 
 2. Install dependencies:
@@ -125,7 +125,7 @@ source mcp_venv/bin/activate
 mcp_venv\Scripts\activate
 
 # Install the server
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/tuda-hpclab/discopop.git#subdirectory=mcp_server
 ```
 
 ### Using conda
@@ -138,7 +138,7 @@ conda create -n discopop-mcp python=3.11
 conda activate discopop-mcp
 
 # Install the server
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/tuda-hpclab/discopop.git#subdirectory=mcp_server
 ```
 
 ## Integration with Claude Code
@@ -236,7 +236,7 @@ pip install --user discopop_mcp_server
 # Create native Python environment
 conda create -n discopop-mcp python=3.11
 conda activate discopop-mcp
-pip install git+https://github.com/discopop-tool/discopop.git#subdirectory=mcp_server
+pip install git+https://github.com/tuda-hpclab/discopop.git#subdirectory=mcp_server
 ```
 
 ### Python version too old
@@ -355,5 +355,5 @@ discopop_mcp_server --debug
 
 - **Installation issues**: Check the Troubleshooting section above
 - **Usage questions**: See [README.md](README.md)
-- **Bug reports**: https://github.com/discopop-tool/discopop/issues
+- **Bug reports**: https://github.com/tuda-hpclab/discopop/issues
 - **Contact**: discopop@lists.parallel.informatik.tu-darmstadt.de

@@ -70,6 +70,7 @@ class ExplorerArguments(GeneralArguments):
     file_mapping_file: str
     plugins: List[str]
     jobs: Optional[int]
+    hotspot_types: List[HotspotType]  # which hotspot classifications restrict the analysis
     # output and formatting
     enable_json_file: Optional[str]
     enable_profiling_dump_file: Optional[str]  # None means no dump, otherwise the path
@@ -149,8 +150,8 @@ def __run(
 ) -> DetectionResult:
     # check for updates
     module_name = "discopop"
-    module_api_url = "https://api.github.com/repos/discopop-project/DiscoPoP/releases/latest"
-    module_release_url = "https://github.com/discopop-project/DiscoPoP/releases"
+    module_api_url = "https://api.github.com/repos/tuda-hpclab/DiscoPoP/releases/latest"
+    module_release_url = "https://github.com/tuda-hpclab/DiscoPoP/releases"
     with stage("Checking for updates"):
         check_for_updates(module_name, module_api_url, module_release_url)
 
@@ -263,9 +264,9 @@ def run(arguments: ExplorerArguments) -> None:
                     dot_discopop_path=os.getcwd(),
                     get_loops=True,
                     get_functions=True,
-                    get_YES=True,
-                    get_MAYBE=True,
-                    get_NO=False,
+                    get_YES=HotspotType.YES in arguments.hotspot_types,
+                    get_MAYBE=HotspotType.MAYBE in arguments.hotspot_types,
+                    get_NO=HotspotType.NO in arguments.hotspot_types,
                     log_level=arguments.log_level,
                     write_log=arguments.write_log,
                 )

@@ -43,8 +43,10 @@ class LoopNode(Node):
 
         Example:
         main(){
-            for(){ // level 1
-                for(){}     // level 0
+            for(){ // level 2
+                for(){     // level 1
+                    for(){}     // level 0
+                }
             }
         }
         """
@@ -59,10 +61,11 @@ class LoopNode(Node):
                 parent_nesting_levels.append(0)
                 break
             elif type(parent_node) == LoopNode:
+                # one level deeper than the enclosing loop
                 parent_nesting_levels.append(
                     min(
                         2,
-                        parent_node.get_nesting_level(pet, return_invert_result=False),
+                        parent_node.get_nesting_level(pet, return_invert_result=False) + 1,
                     )
                 )
 

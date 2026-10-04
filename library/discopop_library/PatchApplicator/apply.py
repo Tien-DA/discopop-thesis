@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from discopop_library.LineMapping.diff_modifications import apply_line_mapping_modifications_from_files
+from discopop_library.PatchApplicator.PatchApplicationResult import PatchApplicationResult
 from discopop_library.PatchApplicator.PatchApplicatorArguments import PatchApplicatorArguments
 
 
@@ -22,12 +23,15 @@ def apply_patches(
     arguments: PatchApplicatorArguments,
     applied_suggestions_file: str,
     patch_generator_dir: str,
-) -> int:
-    """Return values:"
-    "0: Applied successfully"
-    "1: Nothing applied"
-    "2: Some changes applied successfully"""
-    retval = -1  # -1 -> nothing seen so far
+) -> PatchApplicationResult:
+    """Apply the requested suggestions and report which of them reached the code.
+
+    A requested suggestion can miss the code in two ways: ``patch`` rejects its
+    patch (e.g. the source no longer matches), or no patch was generated for the id
+    at all. Both are recorded, so callers can tell an unmodified code base apart
+    from a successful application -- see :class:`PatchApplicationResult`.
+    """
+    result = PatchApplicationResult(requested=list(apply))
     # get list of applicable suggestions
     applicable_suggestions = sorted(os.listdir(patch_generator_dir))
 
@@ -41,6 +45,7 @@ def apply_patches(
         if suggestion_id in applied_suggestions["applied"]:
             if arguments.verbose:
                 print("Skipping already applied suggestion: ", suggestion_id)
+            result.already_applied.append(suggestion_id)
             continue
         if suggestion_id in applicable_suggestions:
             if arguments.verbose:
@@ -51,25 +56,16 @@ def apply_patches(
                 # write updated applied suggestions to file
                 with open(applied_suggestions_file, "w") as f:
                     f.write(json.dumps(applied_suggestions))
-                # update return code
-                if retval == -1:
-                    retval = 0
-                if retval == 1:
-                    # no update for retval = 0 necessary
-                    retval = 2
+                result.applied.append(suggestion_id)
             else:
                 print("Applying suggestion", suggestion_id, "not successful.")
-                # update return code
-                if retval == -1:
-                    retval = 1
-                if retval == 0:
-                    retval = 2
+                result.failed.append(suggestion_id)
         else:
-            if arguments.verbose:
-                print("Nothing to apply for suggestion ", suggestion_id)
-    if retval == -1:
-        retval = 0
-    return retval
+            # requested, but the patch generator produced nothing for this id. This
+            # used to be reported as success, which silently measured unmodified code.
+            print("Nothing to apply for suggestion", suggestion_id, "- no patch was generated.")
+            result.unknown.append(suggestion_id)
+    return result
 
 
 def __apply_file_patches(
@@ -87,8 +83,19 @@ def __apply_file_patches(
         patch_file_path = os.path.join(patch_generator_dir, suggestion_id, patch_file_name)
         # save original version to calculate diff to calculate line mapping
         shutil.copyfile(patch_target.as_posix(), patch_target.as_posix() + ".line_mapping_tmp")
+        # --batch: never ask. Without it patch turns interactive on a reversed or
+        # already-applied patch ("Assume -R? [n]", "Apply anyway? [n]"), and with no
+        # terminal attached -- under the autotuner, the GUI, the MCP server -- the prompt
+        # is answered by EOF.
+        # --forward: and never guess. --batch ALONE answers that prompt with "Assuming
+        # -R" and silently *reverses* the patch, returning 0: applying an
+        # already-applied suggestion would strip the parallelization back out and report
+        # success, and the runtime measured afterwards would be of unmodified code.
+        # --forward makes patch skip such a patch and fail loudly instead.
         command = [
             "patch",
+            "--batch",
+            "--forward",
             patch_target.as_posix(),
             patch_file_path,
         ]
@@ -98,6 +105,7 @@ def __apply_file_patches(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
             universal_newlines=True,
             cwd=os.getcwd(),
         )
@@ -131,6 +139,8 @@ def __apply_file_patches(
             shutil.copyfile(patch_target.as_posix(), patch_target.as_posix() + ".line_mapping_tmp")
             command = [
                 "patch",
+                "--batch",
+                "--forward",
                 "-R",
                 patch_target.as_posix(),
                 patch_file_path,
@@ -141,6 +151,7 @@ def __apply_file_patches(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 universal_newlines=True,
                 cwd=os.getcwd(),
             )

@@ -56,6 +56,9 @@ class ConfigListMixin(ConfigManagerMixinBase):
                     self._refresh_suggestion_selection_display()
                 if hasattr(self, "_update_hotspot_config_display"):
                     self._update_hotspot_config_display()
+                # the Patch Repair tab names the selected configuration and refuses to
+                # run without one, so it has to learn about the selection as well
+                self._update_patch_repair_ui()
 
     def _on_config_selected(self, event: Optional[Any]) -> None:
         selection = self.listbox.curselection()
@@ -70,6 +73,7 @@ class ConfigListMixin(ConfigManagerMixinBase):
             self._refresh_suggestion_selection_display()
         if hasattr(self, "_update_hotspot_config_display"):
             self._update_hotspot_config_display()
+        self._update_patch_repair_ui()
 
         try:
             current_tab_index = self.right_tabs.index(self.right_tabs.select())

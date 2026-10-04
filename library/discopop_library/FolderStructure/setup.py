@@ -58,6 +58,20 @@ def setup_auto_tuner(path: str = "") -> None:
     tmp_logger.debug("Done")
 
 
+def setup_patch_repair(path: str = "") -> None:
+    tmp_logger = logger.getChild("patch_repair")
+    tmp_logger.debug("Start")
+    patch_repair_dir = os.path.join(path, "patch_repair")
+    if not os.path.exists(patch_repair_dir):
+        os.mkdir(patch_repair_dir)
+    # Transcripts and backups are written per suggestion; creating the roots here keeps
+    # every writer free of "does the parent exist" checks.
+    for sub_dir in ["backups", "attempts"]:
+        if not os.path.exists(os.path.join(patch_repair_dir, sub_dir)):
+            os.mkdir(os.path.join(patch_repair_dir, sub_dir))
+    tmp_logger.debug("Done")
+
+
 def setup_parallel_region_merger(path: str = "") -> None:
     tmp_logger = logger.getChild("parallel_region_merger")
     tmp_logger.debug("Start")

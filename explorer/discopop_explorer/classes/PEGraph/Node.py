@@ -94,7 +94,8 @@ class Node:
         return result
 
     def __str__(self) -> str:
-        return self.id
+        # a plain str: str() re-initializes a returned str subclass with this node, which NodeID rejects
+        return str.__str__(self.id)
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Node) and other.file_id == self.file_id and other.node_id == self.node_id

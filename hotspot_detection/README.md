@@ -27,7 +27,7 @@ B) the runtime of the code region increases a lot when using different program p
 
 ## Installation
 
-Hotspot-Detection is part of the [DiscoPoP](https://github.com/discopop-project/discopop) framework.
+Hotspot-Detection is part of the [DiscoPoP](https://github.com/tuda-hpclab/discopop) framework.
 
 ### Install as part of DiscoPoP
 ```

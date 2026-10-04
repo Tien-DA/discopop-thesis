@@ -49,7 +49,7 @@ else()
 No supported LLVM Version found. \
 Versions 19–22 are supported. \
 If a supported LLVM Version is installed, consider specifying the -DLLVM_DIST_PATH flag. \
-For more information, please refer to https://discopop-project.github.io/discopop/setup/discopop. \
+For more information, please refer to https://tuda-hpclab.github.io/discopop/setup/discopop. \
 ")
 	endif()
 endif()

@@ -116,28 +116,14 @@ def show_all_plots(context_task_graph: ContextTaskGraph, highlight_nodes: Option
         #     ax4, highlight_nodes=list(highlight_nodes) if highlight_nodes is not None else None
         # )
 
-        context_task_graph.task_graph.new_plot_context_debug_graph(
-            context_task_graph.create_plottable_canvas("Main graph")
-        )
+        context_task_graph.task_graph.new_plot_context_debug_graph(context_task_graph.create_plottable("Main graph"))
 
     def on_filter(filter_text: str) -> None:
         logger.debug("Filter text: " + filter_text)
 
         # Extra processing here
 
-    for frame_name in [
-        # "Graphs",
-        # "Task Graph",
-        # "Task graph (context graph)",
-        # "Task graph (context debug graph)",
-        # "Context task graph",
-        "Main Graph"
-    ]:
-        try:
-            context_task_graph.delete_frame(frame_name)
-        except KeyError:
-            pass
-
+    context_task_graph.clear_visualizer()
     context_task_graph.set_filter_callback(on_filter)
     draw_plots()
     context_task_graph.run_visualizer()
