@@ -7,17 +7,6 @@ from benchmark.case import BenchmarkCase
 
 
 class BenchmarkLoader:
-    """
-    Discover benchmark tasks from:
-
-        .workspaces/
-            repository/
-                task/
-                    benchmark.json
-                    CMakeLists.txt
-                    main.cpp
-    """
-
     REQUIRED_FILE = (
         "benchmark.json",
     )
@@ -26,23 +15,6 @@ class BenchmarkLoader:
         self.workspace_root = workspace_root
 
     def load_cases(self) -> list[BenchmarkCase]:
-        """
-        Discover benchmark cases from:
-
-            .workspaces/
-                repository/
-                    benchmark.json
-                    ...
-
-        or:
-
-            .workspaces/
-                repository/
-                    task/
-                        benchmark.json
-                        ...
-        """
-
         if not self.workspace_root.exists():
             raise FileNotFoundError(
                 f"Workspace directory does not exist: "
@@ -51,47 +23,24 @@ class BenchmarkLoader:
 
         cases: list[BenchmarkCase] = []
 
-        repositories = sorted(
-            path
-            for path in self.workspace_root.iterdir()
-            if path.is_dir()
+        benchmark_files = sorted(
+            self.workspace_root.rglob("benchmark.json")
         )
 
-        for repository_path in repositories:
+        for benchmark_file in benchmark_files:
+            task_path = benchmark_file.parent
 
-            # ---------------------------------------------------------
-            # Repository itself is one benchmark task
-            # ---------------------------------------------------------
-            if self._has_required_file(repository_path):
-                case = self._load_case(
-                    index=len(cases) + 1,
-                    repository_path=repository_path,
-                    task_path=repository_path,
-                )
+            # The directory directly containing benchmark.json
+            # is the actual benchmark task.
+            repository_path = task_path.parent
 
-                cases.append(case)
-                continue
-
-            # ---------------------------------------------------------
-            # Repository contains multiple benchmark tasks
-            # ---------------------------------------------------------
-            task_directories = sorted(
-                path
-                for path in repository_path.iterdir()
-                if path.is_dir()
+            case = self._load_case(
+                index=len(cases) + 1,
+                repository_path=repository_path,
+                task_path=task_path,
             )
 
-            for task_path in task_directories:
-                if not self._is_valid_task(task_path):
-                    continue
-
-                case = self._load_case(
-                    index=len(cases) + 1,
-                    repository_path=repository_path,
-                    task_path=task_path,
-                )
-
-                cases.append(case)
+            cases.append(case)
 
         return cases
 

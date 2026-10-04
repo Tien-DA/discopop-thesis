@@ -1,0 +1,7 @@
+{
+  "name": "inventory_apply_discount",
+  "task": "Implement the missing function bool inventory_apply_discount(Inventory* inv, const char* name, double percent). It should find the item by name and reduce its price by percent% (e.g. percent=20 on price 10.0 gives 8.0). Return false without modifying anything if the item is not found, or if percent is negative or greater than 100. The resulting price must never go below 0. Do not modify any other function.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/inventory",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

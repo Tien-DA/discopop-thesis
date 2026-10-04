@@ -1,0 +1,7 @@
+{
+  "name": "bst_kth_smallest",
+  "task": "Implement the missing method BinarySearchTree::kth_smallest(int k) (1-indexed: k=1 returns the smallest value). It must throw std::out_of_range if k is less than 1 or greater than the number of nodes. Do not modify any other method, and do not change the tree's structure.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/bst",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

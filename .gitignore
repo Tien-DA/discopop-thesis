@@ -175,5 +175,5 @@ _deps
 
 **/.discopop
 **/prog
-mcp_server_validation/.workspaces
+# mcp_server_validation/.workspaces
 mcp_server_validation/runs

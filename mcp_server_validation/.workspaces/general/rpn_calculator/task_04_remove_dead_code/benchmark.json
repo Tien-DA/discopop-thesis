@@ -1,0 +1,7 @@
+{
+  "name": "rpn_remove_dead_code",
+  "task": "main.cpp contains a leftover function legacy_evaluate_infix() from an abandoned infix-parser attempt. It is never called anywhere and triggers a -Wunused-function warning, which this build treats as an error (-Werror). Remove this dead function so the project builds cleanly, without changing the behavior of any code that is actually used.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/rpn_calculator",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

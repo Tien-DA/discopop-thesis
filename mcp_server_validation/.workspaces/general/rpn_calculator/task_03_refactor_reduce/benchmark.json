@@ -1,0 +1,7 @@
+{
+  "name": "rpn_refactor_reduce",
+  "task": "sum_all() and product_all() in main.cpp duplicate the same loop-over-a-vector structure, differing only in the accumulation operator and the identity value the accumulator starts from. Refactor them to eliminate this duplication (e.g. via a shared private helper taking a binary operation and identity value, or by using std::accumulate directly). Keep both public function signatures and their behavior unchanged.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/rpn_calculator",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "bst_height_off_by_one",
+  "task": "BinarySearchTree::height() is off by one for every case: it treats an empty subtree (nullptr) as height 0 instead of -1. As a result, an empty tree reports height 0 instead of -1, and a single-node tree reports height 1 instead of 0. Fix height() so it follows the convention that an empty tree has height -1 and a single-node tree has height 0. Do not change the method's signature.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/bst",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

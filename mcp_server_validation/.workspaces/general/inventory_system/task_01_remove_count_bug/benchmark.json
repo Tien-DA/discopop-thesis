@@ -1,0 +1,7 @@
+{
+  "name": "inventory_remove_count_bug",
+  "task": "inventory_remove() shifts the array elements correctly to fill the gap left by the removed item, but never decrements inv->count. As a result the removed item's slot still exists logically: count stays the same, the last valid item appears duplicated at the end, and total_value/total_quantity report inflated totals. Fix inventory_remove() so count is decremented after a successful removal. Do not change the function's signature.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/inventory",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

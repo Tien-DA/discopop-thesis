@@ -1,0 +1,7 @@
+{
+  "name": "inventory_refactor_totals",
+  "task": "inventory_total_value() and inventory_total_quantity() duplicate the same loop-over-items structure, differing only in the per-item quantity extracted/accumulated. Refactor them to eliminate the duplication by extracting a shared static helper function that both call (e.g. a generic accumulator taking a function pointer, or an internal loop helper parameterized by what to sum). Keep both public function signatures and their behavior unchanged.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/inventory",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}

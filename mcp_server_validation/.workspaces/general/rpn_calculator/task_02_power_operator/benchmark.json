@@ -1,0 +1,7 @@
+{
+  "name": "rpn_power_operator",
+  "task": "Add support for the power operator \"^\" to the calculator: is_operator() must recognize \"^\", and apply_operator() must handle it by computing a raised to the power b (use std::pow). \"2 10 ^\" should evaluate to 1024. Do not change the behavior of the existing +, -, *, / operators or any function signature.",
+  "build_command": "cmake -S . -B build && cmake --build build -j2",
+  "profiling_command": "./build/rpn_calculator",
+  "test_command": "ctest --test-dir build --output-on-failure"
+}
