@@ -1,7 +1,0 @@
-{
-  "name": "bst_refactor_min_max",
-  "task": "BinarySearchTree::min_value() and BinarySearchTree::max_value() duplicate the same traversal loop, differing only in whether they follow left or right child pointers. Refactor them to eliminate the duplication by extracting a shared private helper (e.g. extreme_node(bool go_left)) and have both public methods use it. Keep the public signatures and behavior unchanged, including throwing std::out_of_range when called on an empty tree.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/bst",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}

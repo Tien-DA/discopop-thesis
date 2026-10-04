@@ -1,7 +1,0 @@
-{
-  "name": "inventory_add_duplicate_name_bug",
-  "task": "inventory_add() always appends a new entry, even if an item with the same name already exists. This creates duplicate entries for the same product instead of consolidating stock, which corrupts inventory_find() (only the first entry is ever reachable) and inflates totals incorrectly. Fix inventory_add() so that if an item with the given name already exists, its quantity is increased by the new quantity and its price is updated to the new price, instead of a new entry being appended. Do not change the function's signature.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/inventory",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}

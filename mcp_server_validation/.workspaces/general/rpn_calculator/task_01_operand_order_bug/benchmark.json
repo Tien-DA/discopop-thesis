@@ -1,7 +1,0 @@
-{
-  "name": "rpn_operand_order_bug",
-  "task": "evaluate_rpn() pops the two operands for a binary operator in the wrong order: it assigns the first popped value (the right-hand operand) to 'a' and the second popped value (the left-hand operand) to 'b', then calls apply_operator(op, a, b). This gives correct results for + and * but wrong results for - and / (e.g. \"6 2 -\" evaluates as 2-6 instead of 6-2). Fix evaluate_rpn() so operands are passed to apply_operator in the correct left-to-right order. Do not change apply_operator() or the function signatures.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/rpn_calculator",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}

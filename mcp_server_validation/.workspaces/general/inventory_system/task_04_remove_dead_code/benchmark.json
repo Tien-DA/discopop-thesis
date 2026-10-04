@@ -1,7 +1,0 @@
-{
-  "name": "inventory_remove_dead_code",
-  "task": "main.c contains a leftover function print_item_debug() from earlier debugging work. It is never called anywhere and triggers a -Wunused-function warning, which this build treats as an error (-Werror). Remove this dead function so the project builds cleanly, without changing the behavior of any code that is actually used.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/inventory",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}

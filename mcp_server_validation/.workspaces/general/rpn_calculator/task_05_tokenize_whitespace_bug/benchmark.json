@@ -1,7 +1,0 @@
-{
-  "name": "rpn_tokenize_whitespace_bug",
-  "task": "tokenize() splits the expression on single space characters only. Consecutive spaces or tabs produce empty-string tokens, which later crash std::stod inside evaluate_rpn() with a std::invalid_argument (e.g. \"3   4 +\" or a tab-separated expression fails even though it should evaluate normally). Fix tokenize() so that any run of whitespace (spaces, tabs) is treated as a single delimiter and no empty tokens are produced. Do not change the function's signature.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/rpn_calculator",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}

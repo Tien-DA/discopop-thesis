@@ -1,7 +1,0 @@
-{
-  "name": "bst_remove_two_children_bug",
-  "task": "BinarySearchTree::remove() is broken for nodes with two children. When removing such a node, the code finds the in-order successor (leftmost node of the right subtree), copies its value into the node, but then recurses into the wrong subtree to delete the successor, silently dropping an unrelated subtree instead. Fix remove() so deleting a two-children node correctly removes only the successor node and preserves the rest of the tree. Do not change the class's public interface.",
-  "build_command": "cmake -S . -B build && cmake --build build -j2",
-  "profiling_command": "./build/bst",
-  "test_command": "ctest --test-dir build --output-on-failure"
-}
