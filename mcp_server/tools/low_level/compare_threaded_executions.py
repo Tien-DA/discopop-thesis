@@ -9,7 +9,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
@@ -53,7 +53,7 @@ def _fingerprint(stdout: str, stderr: str, returncode: int) -> str:
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
-def _sample(stdout: str, stderr: str) -> str | None:
+def _sample(stdout: str, stderr: str) -> Optional[str]:
     text = (stdout.strip() or stderr.strip()).replace("\x1b", "")
     if not text:
         return None
@@ -80,8 +80,8 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
         for threads in counts:
             fingerprints: list[str] = []
             elapsed: list[float] = []
-            sample: str | None = None
-            returncodes: list[int | None] = []
+            sample: Optional[str] = None
+            returncodes: list[Optional[int]] = []
             for _ in range(repetitions):
                 env = os.environ.copy()
                 env["OMP_NUM_THREADS"] = str(threads)
@@ -91,7 +91,7 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
                 try:
                     completed = subprocess.run(["/bin/bash", str(script)], cwd=project_path, env=env,
                                                text=True, capture_output=True, timeout=timeout)
-                    code: int | None = completed.returncode
+                    code: Optional[int] = completed.returncode
                     fingerprints.append(_fingerprint(completed.stdout, completed.stderr, completed.returncode))
                     sample = sample or _sample(completed.stdout, completed.stderr)
                 except subprocess.TimeoutExpired:

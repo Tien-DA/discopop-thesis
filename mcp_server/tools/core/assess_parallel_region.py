@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Tuple
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
@@ -49,7 +49,7 @@ def _payload(result: list[TextContent]) -> dict[str, Any]:
         return {}
 
 
-def _region(project_path: str, arguments: dict[str, Any]) -> tuple[Path, int, int] | None:
+def _region(project_path: str, arguments: dict[str, Any]) -> Optional[Tuple[Path, int, int]]:
     root = Path(project_path).resolve()
     file_path = str(arguments.get("file_path", "")).strip()
     start = int(arguments.get("start_line", 0) or 0)

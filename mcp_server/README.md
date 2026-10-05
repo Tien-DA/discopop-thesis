@@ -253,13 +253,13 @@ pytest mcp_server -v
 
 Reading raw files from `.discopop` is wasteful and unreliable: the directory contains large binary files, intermediate artefacts, and serialised objects that are expensive to parse and consume a significant number of tokens. The MCP tools return pre-processed, structured summaries that contain exactly the information needed — at a fraction of the token cost.
 
-If a piece of information appears to be missing from the available tools, the correct response is to use the tool that produces it (e.g. run `gather_data` before calling `get_parallelization_patches` or `get_data_dependencies`) rather than reading the underlying files directly.
+If evidence is missing, use the workflow that produces it (for example, run `gather_data` before assessing a region or tuning candidates) rather than reading the underlying files directly.
 
 ### The route to parallelized code
 
 `gather_data` → `run_auto_tuning` → `manage_patches(action="apply", ...)`, or `gather_data` → `run_auto_tuning(apply=true)`.
 
-**Do not decide which patches to apply by reading them.** Which combination is fastest is what `run_auto_tuning` measures; picking from the diffs by hand discards the one thing DiscoPoP can establish and a reader cannot, and a combination that looks sensible is regularly slower than the sequential program (fork/join overhead on short loops) or invalid. Read patches to *understand* a suggestion, not to choose between them — `get_parallelization_patches(detail="summary")` is enough for the former.
+**Do not decide which patches to apply by reading them.** `run_auto_tuning` measures candidate combinations; picking a diff by hand discards the performance evidence DiscoPoP can establish.
 
 Run the tuner **before** applying anything. It needs an un-patched project, and while it clears and restores an existing selection on its own, a source file that was also edited by hand can no longer be un-patched automatically.
 

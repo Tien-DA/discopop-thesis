@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
@@ -58,7 +58,7 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
             "include_dependency_evidence": True,
         }, ctx))
         causes = diagnosis.get("findings", [])[:max_causes]
-        runtime: dict[str, Any] | None = None
+        runtime: Optional[dict[str, Any]] = None
         if config_name:
             execute = Path(project_path) / ".discopop" / "project" / "configs" / config_name / "execute.sh"
             if execute.is_file():

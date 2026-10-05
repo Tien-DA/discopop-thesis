@@ -60,7 +60,7 @@ Reading raw files from `.discopop` (via file reads, directory listings, or shell
 - The directory contains large binary files, intermediate artefacts, and `jsonpickle`-serialised objects that are expensive to parse.
 - Doing so consumes a significant number of tokens for data that the MCP tools already expose in a structured, pre-processed form.
 
-The MCP tools return exactly the information needed at a fraction of the token cost. If a piece of information appears to be missing, use the tool that produces it — for example, run `gather_data` before calling `get_parallelization_patches` or `get_data_dependencies` — rather than reading the underlying files directly.
+The MCP tools return compact decision-ready evidence. If evidence is missing, use the workflow that produces it — for example, run `gather_data` before assessing a region or tuning candidates — rather than reading underlying files directly.
 
 ## Claude Code (CLI) - Manual Configuration
 
