@@ -9,12 +9,9 @@ void Lookup::build() const {
     for (std::size_t k = 0; k < len_; ++k) {
         memo_[k] = mix64(salt_ + k * 0x9e3779b9ULL);
     }
-    ready_ = true;
 }
 
 uint64_t Lookup::get(std::size_t k) const {
-    if (!ready_) {
-        build();
-    }
+    std::call_once(build_once_, [this] { build(); });
     return memo_[k % len_];
 }

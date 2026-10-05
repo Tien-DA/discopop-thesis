@@ -38,7 +38,7 @@ TOOL = Tool(
         "\n\n"
         "Call this to inspect what build and execution scripts are currently defined for a project, "
         "or to check whether a project has been initialized yet — an empty configurations list and "
-        "null compile_script means initialize_discopop_directory has not been run. "
+        "null compile_script means prepare_project_analysis has not been run. "
         "\n\n"
         "Returns:\n"
         "  - compile_script: content of .discopop/project/configs/compile.sh, or null if absent\n"

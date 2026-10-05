@@ -4,6 +4,7 @@ from pathlib import Path
 
 from benchmark.loader import BenchmarkLoader
 from benchmark.runner import BenchmarkRunner
+from benchmark.batch_runner import BatchBenchmarkRunner
 from llm.client import LLMClient
 from llm.opencode import OpenCodeClient
 from benchmark.selector import BenchmarkSelector
@@ -116,7 +117,10 @@ def main():
     # ==============================================================
     # Run benchmark cases
     # ==============================================================
-    runner.run_case(case)
+    if case is None:
+        BatchBenchmarkRunner(runner).run_all(cases)
+    else:
+        runner.run_case(case)
 
 
 if __name__ == "__main__":

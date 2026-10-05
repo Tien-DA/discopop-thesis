@@ -10,7 +10,7 @@ uint64_t spread(uint64_t value, unsigned rounds) {
 }
 
 std::size_t clamp_index(long index, std::size_t n) {
-    if (index < 0) return 0;
+    if (index < 0) return n - 1;
     if (static_cast<std::size_t>(index) >= n) return n - 1;
     return static_cast<std::size_t>(index);
 }

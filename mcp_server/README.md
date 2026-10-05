@@ -95,52 +95,23 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for more options or [CLAUDE_INTEGRATION.md]
 
 ## Available Tools
 
-This section documents the tools around build and execution configuration. The server exposes further tools for running the pipeline and querying its results; call `tools/list`, or see `mcp_server/tools/`, for the complete set.
+The server exposes one setup tool and further tools for running the pipeline and querying its results; call `tools/list`, or see `mcp_server/tools/`, for the complete set.
 
-### 1. `set_compile_script`
+### 1. `prepare_project_analysis`
 
-Writes a build script for a project. Must use `$CC` / `$CXX` and `$CFLAGS` / `$CXXFLAGS` instead of hard-coded compiler names, since the same script is reused for sequential, instrumented, hotspot-detection and parallel builds — only the settings file differs.
-
-**Parameters:**
-- `project_path` (string, required): Path to the target project
-- `script_body` (string, required): Bash script body; a `#!/bin/bash` shebang is prepended if absent
-- `config_name` (string, optional): Write a per-configuration override instead of the shared script
-- `purpose` (string, optional): `execute` (default) writes `compile.sh`; `validate` writes `compile_validate.sh`, a separate build for `validate.sh`
-
-A `compile_validate.sh` is only relevant when the configuration also has a `validate.sh`; the response reports which configurations it is `used_by` and which it is `ignored_for`. See the [project manager documentation](https://tuda-hpclab.github.io/discopop/Tools/Project_manager/) for the full resolution order.
+Creates `.discopop`, writes the shared build script, and creates one execution configuration in a single call. Pass a project root, its build command, and a small representative run command. GCC/G++ are the defaults for OpenMP projects.
 
 **Example:**
 ```json
 {
   "project_path": "/home/user/my_project",
-  "script_body": "$CXX $CXXFLAGS main.cpp -o myapp\n",
-  "purpose": "validate"
+  "build_command": "make all",
+  "run_command": "./build/app",
+  "config_name": "benchmark"
 }
 ```
 
-### 2. `create_execution_configuration`
-
-Creates a named execution configuration — a subdirectory under `.discopop/project/configs/` describing how to run the compiled binary.
-
-**Parameters:**
-- `project_path` (string, required): Path to the target project
-- `config_name` (string, required): Name of the configuration; also the subdirectory name
-- `script_body` (string, required): Body of `execute.sh`, the timed run
-- `compile_script_body` (string, optional): Body of a per-configuration `compile.sh` override
-- `validate_script_body` (string, optional): Body of `validate.sh`, an untimed output check run after a successful `execute.sh`; the run counts as correct only if both exit `0`
-- `validation_compile_script_body` (string, optional): Body of a per-configuration `compile_validate.sh`; requires a `validate.sh`, and is rejected without one
-
-**Example:**
-```json
-{
-  "project_path": "/home/user/my_project",
-  "config_name": "small_input",
-  "script_body": "./myapp --input data/small.txt > out.txt\n",
-  "validate_script_body": "diff out.txt reference.txt\n"
-}
-```
-
-### 3. `get_configurations`
+### 2. `get_configurations`
 
 Retrieves the build scripts and execution configurations defined for a target project, reading `<project_path>/.discopop/project/configs/`.
 
@@ -191,6 +162,18 @@ Dependencies are grouped by direction:
 - `var_name` (string, optional): Restrict results to a specific variable; automatically excludes incoming dependencies (aliasing safety)
 
 This tool is cheap to call repeatedly — `DetectionResult` and `FileMapping` are cached in memory after the first load. Requires `gather_data` to have been run first.
+
+### `diagnose_parallel_correctness`
+
+Ranks likely correctness hazards in existing OpenMP regions. It identifies contended indexed updates, read-modify-write operations, static scratch state, and available DiscoPoP dependency evidence. Its compact findings include file/line, shared object, evidence, and repair class; use it after `gather_data` when parallel results differ from the sequential baseline.
+
+### `trace_symbol_slice`
+
+Returns a bounded caller/callee slice for a function or method, including cross-file call edges, source locations, OpenMP callers, and static local state. Use it to trace helpers such as a lookup, digest, cache, or kernel without reading every module.
+
+### `compare_threaded_executions`
+
+Runs a prepared execution configuration with several `OMP_NUM_THREADS` values and repetitions. It reports compact output fingerprints, stability, and divergence from the one-thread baseline; it does not need or expose hidden tests.
 
 ### 6. `run_auto_tuning`
 
@@ -290,7 +273,7 @@ So `gather_data` rebuilds the project plainly (`par_settings.json`, falling back
 
 ### Limiting the exposed tools
 
-`--tools analysis` leaves out the three project setup tools (`initialize_discopop_directory`, `set_compile_script`, `create_execution_configuration`), which are neither listed nor callable in that mode. Use it when pointing an agent at a project that is already configured: it removes roughly a third of the tool definitions from the agent's context, and rules out an `initialize_discopop_directory(reset=true)` that would delete the configurations the agent was pointed at.
+`--tools analysis` leaves out `prepare_project_analysis`, which is neither listed nor callable in that mode. Use it when pointing an agent at a project that is already configured: it removes setup-only context and rules out a reset of the analysis artefacts.
 
 ## Daemon Mode
 

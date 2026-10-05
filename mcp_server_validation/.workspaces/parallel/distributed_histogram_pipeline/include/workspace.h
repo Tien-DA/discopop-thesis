@@ -2,17 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 #include "config.h"
 
-// Pool of pre-allocated scratch windows. acquire(key) hands out the slot
-// that belongs to 'key'.
+// Each OpenMP worker receives an independent reusable scratch window.
 class WorkspacePool {
 public:
-    WorkspacePool();
+    WorkspacePool() = default;
     uint64_t* acquire(std::size_t key);
-
-private:
-    std::vector<std::vector<uint64_t>> slots_;
 };

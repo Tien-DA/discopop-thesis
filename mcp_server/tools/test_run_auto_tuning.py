@@ -224,7 +224,7 @@ class TestRunAutoTuning(unittest.TestCase):
         )
         parsed = json.loads(data[0].text)
         self.assertEqual(parsed["status"], "error")
-        self.assertIn("initialize_discopop_directory", parsed["message"])
+        self.assertIn("prepare_project_analysis", parsed["message"])
 
     def test_missing_pipeline_artefact_names_the_path(self) -> None:
         os.remove(os.path.join(self.dot_dp, "line_mapping.json"))

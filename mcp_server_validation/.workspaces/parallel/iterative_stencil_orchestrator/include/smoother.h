@@ -2,10 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
-// Windowed smoothing filter. apply() does not change the observable state
-// of the filter.
+// Windowed smoothing filter. apply() has no mutable shared scratch state.
 class Smoother {
 public:
     Smoother(std::size_t len, uint64_t salt);
@@ -14,5 +12,4 @@ public:
 private:
     std::size_t len_;
     uint64_t salt_;
-    mutable std::vector<uint64_t> tmp_;
 };

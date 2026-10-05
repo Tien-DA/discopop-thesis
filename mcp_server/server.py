@@ -37,16 +37,20 @@ from mcp_server.argument_coercion import coerce_arguments, validation_error
 from mcp_server.setup_mcp import MCPSetup
 
 from mcp_server.tools import (
-    create_execution_configuration,
+    analyze_code_region,
+    compare_threaded_executions,
+    diagnose_parallel_correctness,
     gather_data,
     get_configurations,
     get_data_dependencies,
     get_execution_results,
     get_parallelization_patches,
-    initialize_discopop_directory,
+    get_parallelization_recommendations,
+    get_project_summary,
     manage_patches,
+    prepare_project_analysis,
     run_auto_tuning,
-    set_compile_script,
+    trace_symbol_slice,
 )
 from mcp_server.tools.helpers import ToolContext
 
@@ -152,34 +156,31 @@ _SERVER_INSTRUCTIONS = (
     "and apply changes manually. manage_patches delegates all patching work to the "
     "discopop_patch_applicator binary, which is orders of magnitude faster and consumes far "
     "fewer tokens than reading patch files and editing source files by hand. "
-    "Use initialize_discopop_directory with reset=true to clear stale analysis artefacts "
+    "Use prepare_project_analysis with reset=true to clear stale analysis artefacts "
     "when the pipeline is in a broken or inconsistent state."
 )
 
 _ALL_TOOLS = [
+    analyze_code_region,
+    diagnose_parallel_correctness,
+    trace_symbol_slice,
+    compare_threaded_executions,
     get_configurations,
     get_execution_results,
     get_data_dependencies,
-    initialize_discopop_directory,
-    set_compile_script,
-    create_execution_configuration,
+    get_project_summary,
+    prepare_project_analysis,
     gather_data,
     get_parallelization_patches,
+    get_parallelization_recommendations,
     run_auto_tuning,
     manage_patches,
 ]
 
-# The three tools that *define* a project rather than analyse one. Together they are
-# roughly a third of the tool definitions this server sends a client, and a caller
-# working on a project that is already set up -- an unattended run against a prepared
-# project, most of all -- never wants them: at best they are unused context, at worst
-# initialize_discopop_directory(reset=true) removes the very configurations the caller
-# was pointed at. --tools analysis leaves them out, of the listing and of dispatch
-# alike, so "not offered" and "not available" mean the same thing.
+# The single agent-facing setup tool replaces the former three-step sequence. A caller
+# working on a prepared project can still choose --tools analysis to omit it entirely.
 _SETUP_TOOLS = [
-    initialize_discopop_directory,
-    set_compile_script,
-    create_execution_configuration,
+    prepare_project_analysis,
 ]
 
 TOOL_SETS = {
@@ -537,8 +538,7 @@ Available agents: {', '.join(agent_choices)}
         default=DEFAULT_TOOL_SET,
         help=(
             "Which tools to expose. 'all' (default) offers every tool; 'analysis' leaves out "
-            "the project setup tools (initialize_discopop_directory, set_compile_script, "
-            "create_execution_configuration) — use it against a project that is already "
+            "the project setup tool (prepare_project_analysis) — use it against a project that is already "
             "configured, so those tools can neither be listed nor called"
         ),
     )

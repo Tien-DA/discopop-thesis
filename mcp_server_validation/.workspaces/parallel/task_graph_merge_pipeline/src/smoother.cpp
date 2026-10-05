@@ -1,11 +1,13 @@
 #include "smoother.h"
 
+#include <vector>
+
 #include "mix.h"
 
-Smoother::Smoother(std::size_t len, uint64_t salt) : len_(len), salt_(salt), tmp_(len) {}
+Smoother::Smoother(std::size_t len, uint64_t salt) : len_(len), salt_(salt) {}
 
 uint64_t Smoother::apply(const uint64_t* in, std::size_t n, std::size_t i) const {
-    std::vector<uint64_t>& tmp = tmp_;
+    std::vector<uint64_t> tmp(len_);
     for (std::size_t k = 0; k < len_; ++k) {
         tmp[k] = mix64(in[(i * 3 + k * 5) % n] ^ (salt_ + k));
     }

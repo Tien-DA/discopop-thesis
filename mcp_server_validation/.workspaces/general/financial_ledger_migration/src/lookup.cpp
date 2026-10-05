@@ -7,7 +7,7 @@ Lookup::Lookup(std::size_t len, uint64_t salt) : len_(len), salt_(salt) {}
 void Lookup::build() const {
     memo_.resize(len_);
     for (std::size_t k = 0; k < len_; ++k) {
-        memo_[k] = mix64(salt_ + k * 0x9e3779b9ULL);
+        memo_[k] = mix64(salt_ + 1 + k * 0x9e3779b9ULL);
     }
     ready_ = true;
 }

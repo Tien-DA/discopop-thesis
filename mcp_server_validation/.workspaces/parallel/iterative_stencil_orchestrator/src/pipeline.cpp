@@ -14,6 +14,7 @@ void run_resample(Context& ctx);
 void run_quantize(Context& ctx);
 void run_transform(Context& ctx);
 void run_index(Context& ctx);
+void run_stencil(Context& ctx);
 
 void run_all(Context& ctx) {
     run_signal(ctx);
@@ -30,4 +31,5 @@ void run_all(Context& ctx) {
     run_quantize(ctx);
     run_transform(ctx);
     run_index(ctx);
+    run_stencil(ctx);
 }

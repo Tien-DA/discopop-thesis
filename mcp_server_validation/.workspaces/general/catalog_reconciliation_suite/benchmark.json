@@ -1,8 +1,8 @@
 {
   "name": "catalog_reconciliation_suite",
-  "task": "The repository contains a multi-stage OpenMP data-processing system with shared support code and a correctness suite. Its results are deterministic with one thread, but parallel executions violate the expected end-to-end contract. Investigate the implementation and repair every root cause of the incorrect parallel behavior. Preserve the public interfaces, configuration values, stage ordering, and stage arithmetic. The existing OpenMP parallelism must remain in place: do not remove or serialize parallel loops, and satisfy the pragma baseline check. Build and run the complete test suite; all existing tests must pass.",
+  "task": "A deterministic catalog reconciliation pipeline produces incorrect checksums for both its small and stress workloads. Trace the pipeline and repair every root cause. Catalog lookups must return the value associated with the requested key, and boundary indices must clamp to the first or last valid record. Preserve public interfaces, pipeline order, configuration values, and arithmetic outside the defects. Build the project; an independent evaluator will verify the complete correctness suite.",
   "language": "C++17",
-  "parallel_framework": "OpenMP",
+  "category": "general",
   "build_command": "make all",
   "test_command": "make test",
   "profiling_command": "./build/app"

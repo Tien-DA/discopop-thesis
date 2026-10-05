@@ -176,7 +176,7 @@ Note that the *role* of a script outranks how specific it is: a shared `compile_
 ### Editing configurations
 - **Graphically:** `discopop_gui` (or `discopop_project_manager --gui`). The configuration assistant creates a first configuration; afterwards the editor's sub-tabs manage `execute.sh`, `validate.sh` and the two override scripts, each with an *Add* / *Remove* button, while the *Compilation Editor* manages the shared `compile.sh`, `compile_validate.sh` and the settings files. The *execute.sh* sub-tab also carries that configuration's *Execution time* setting, with a *Test* button that applies the pattern to the output of the last recorded run without executing anything.
 - **By hand:** create the files listed above and mark them executable.
-- **Through an LLM agent:** the [DiscoPoP MCP server](https://github.com/tuda-hpclab/discopop/tree/master/mcp_server) exposes `set_compile_script` (with `purpose` selecting `compile.sh` or `compile_validate.sh`) and `create_execution_configuration` (which writes `execute.sh` and optionally `validate.sh` plus the override scripts).
+- **Through an LLM agent:** the [DiscoPoP MCP server](https://github.com/tuda-hpclab/discopop/tree/master/mcp_server) exposes `prepare_project_analysis`, which creates the DiscoPoP directory, shared build script, and one execution configuration in a single call.
 
 ### The GUI's tabs
 Beyond the editor, the graphical interface drives the rest of the pipeline in workflow order: *Execute* runs a configuration, *Report* shows the collected measurements, and *Hotspot Detection*, *Pattern Detection*, [*Patch Repair*](Patch_repair.md) and [*Autotuning*](Autotuner.md) each run the corresponding tool as a subprocess and display its results.

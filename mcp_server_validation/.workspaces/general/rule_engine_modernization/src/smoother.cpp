@@ -11,7 +11,7 @@ uint64_t Smoother::apply(const uint64_t* in, std::size_t n, std::size_t i) const
     }
     uint64_t acc = 0x2545f4914f6cdd1dULL;
     for (std::size_t k = 0; k < len_; ++k) {
-        acc = acc * 33 + (tmp[k] ^ (tmp[(k + 2) % len_] >> 9));
+        acc = acc * 33 + (tmp[k] ^ (tmp[(k + 1) % len_] >> 9));
     }
     return acc;
 }

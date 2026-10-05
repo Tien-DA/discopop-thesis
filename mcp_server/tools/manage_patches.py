@@ -87,7 +87,7 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
 
         if not discopop_dir.exists():
             return ctx.error(
-                "DiscoPoP directory not found. Run initialize_discopop_directory and gather_data first.",
+                "DiscoPoP directory not found. Run prepare_project_analysis and gather_data first.",
                 project_path,
                 "manage_patches",
             )

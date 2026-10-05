@@ -81,7 +81,7 @@ TOOL = Tool(
         "How far the correctness claim reaches depends on the configuration: without a "
         "validate.sh a candidate counts as valid as soon as it exits with code 0, so a "
         "parallelization that corrupts the output is indistinguishable from a correct one. "
-        "Define validate.sh via create_execution_configuration(validate_script_body=...) "
+        "Define validation before calling this tool when output checking is required. "
         "before tuning whenever the program's output can be checked. The result carries a "
         "'warnings' list whenever the selection rests on weaker evidence than it appears to."
     ),
@@ -204,7 +204,7 @@ def _validate_preconditions(project_path: str, config_name: str, dot_dp: str) ->
             return (
                 f"Configuration '{config_name}' is incomplete or does not exist (missing: {missing}). "
                 "Use get_configurations to list the available configurations, or "
-                "create_execution_configuration to create one."
+                "prepare_project_analysis to create one."
             )
         return (
             f"The project is not ready for auto tuning (missing: {missing}). "
@@ -319,7 +319,7 @@ def _validation_notes(dot_dp: str, config_name: str, result: dict[str, Any]) -> 
         notes.append(
             f"Configuration '{config_name}' has no {VALIDATE_SCRIPT_NAME}, so a candidate counted as "
             "valid merely exited with code 0 — its output was never checked. Add one via "
-            "create_execution_configuration(validate_script_body=...) to let the tuner verify "
+            "a validation script to let the tuner verify "
             "correctness, and review the selected patches before trusting them."
         )
     speedup = result.get("speedup")
@@ -509,7 +509,7 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
         dot_dp = str(Path(project_path) / ".discopop")
         if not os.path.exists(dot_dp):
             return ctx.error(
-                "DiscoPoP directory not found. Run initialize_discopop_directory and gather_data first.",
+                "DiscoPoP directory not found. Run prepare_project_analysis and gather_data first.",
                 project_path,
                 "run_auto_tuning",
             )

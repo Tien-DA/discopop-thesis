@@ -13,7 +13,7 @@
 import json
 
 from mcp_server.server import DiscoPopMCPServer
-from mcp_server.tools import get_configurations, get_execution_results, initialize_discopop_directory
+from mcp_server.tools import get_configurations, get_execution_results, prepare_project_analysis
 
 
 def demo() -> None:
@@ -24,10 +24,12 @@ def demo() -> None:
 
     server = DiscoPopMCPServer(debug=True)
 
-    # Test 1: initialize_discopop_directory on a non-existent path
-    print("TEST 1: Initialize DiscoPoP Directory (non-existent path)")
+    # Test 1: prepare_project_analysis on a non-existent path
+    print("TEST 1: Prepare DiscoPoP Analysis (non-existent path)")
     print("-" * 70)
-    result = initialize_discopop_directory.handle({"project_path": "./nonexistent"}, server._ctx)
+    result = prepare_project_analysis.handle(
+        {"project_path": "./nonexistent", "build_command": "make all", "run_command": "./app"}, server._ctx
+    )
     print("Response:", json.loads(result[0].text))
     print()
 

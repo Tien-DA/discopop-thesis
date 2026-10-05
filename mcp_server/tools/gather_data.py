@@ -27,7 +27,7 @@ TOOL = Tool(
     name="gather_data",
     description=(
         "Run the complete DiscoPoP data collection pipeline and detect parallelization patterns. "
-        "Call this after set_compile_script and create_execution_configuration. "
+        "Call this after prepare_project_analysis. "
         "\n\n"
         "The pipeline consists of two phases:\n"
         "\n"
@@ -123,9 +123,9 @@ def _hotspot_instrument(
     # honours a per-configuration compile.sh override, falling back to the shared script
     compile_sh = Path(resolve_compile_script_path(str(configs_dir), config_name))
     if not compile_sh.exists():
-        return {"status": "error", "message": "compile.sh not found. Run set_compile_script first."}
+        return {"status": "error", "message": "compile.sh not found. Run prepare_project_analysis first."}
     if not hd_settings.exists():
-        return {"status": "error", "message": "hd_settings.json not found. Run initialize_discopop_directory first."}
+        return {"status": "error", "message": "hd_settings.json not found. Run prepare_project_analysis first."}
 
     if not force and private_dir.exists():
         result_files = list(private_dir.glob("hotspot_result_*.txt"))
@@ -376,9 +376,9 @@ def _instrument_project(
     # honours a per-configuration compile.sh override, falling back to the shared script
     compile_sh = Path(resolve_compile_script_path(str(configs_dir), config_name))
     if not compile_sh.exists():
-        return {"status": "error", "message": "compile.sh not found. Run set_compile_script first."}
+        return {"status": "error", "message": "compile.sh not found. Run prepare_project_analysis first."}
     if not dp_settings.exists():
-        return {"status": "error", "message": "dp_settings.json not found. Run initialize_discopop_directory first."}
+        return {"status": "error", "message": "dp_settings.json not found. Run prepare_project_analysis first."}
 
     # Skipped only when the profiling output is current as well. If profiling still has
     # to run, it needs the instrumented binary -- and a previous call restored the plain

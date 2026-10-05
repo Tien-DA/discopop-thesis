@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -118,6 +119,8 @@ class DiscoPoPRunner:
         )
         print("=" * 80)
 
+        execution_timeout = getattr(case, "profiling_timeout_seconds", None) or self.timeout
+
         result = execute_configuration(
             arguments=arguments,
             project_copy_root_path=str(project),
@@ -125,7 +128,7 @@ class DiscoPoPRunner:
             settings_path=str(settings),
             script_path=str(execute_script),
             thread_count=1,
-            timeout=float(self.timeout),
+            timeout=float(execution_timeout),
         )
 
         if result[0] != 0:
@@ -173,11 +176,39 @@ class DiscoPoPRunner:
         # EXPLORER
         # ------------------------------------------------------------
 
-        explorer = self._run_explorer(
-            project
-        )
+        try:
+            explorer = self._run_explorer(project)
+        except subprocess.TimeoutExpired as exc:
+            return {
+                "success": False,
+                "analysis_available": False,
+                "stage": "pattern_detection_timeout",
+                "timeout_seconds": self.timeout,
+                "stdout": exc.stdout or "",
+                "stderr": exc.stderr or "",
+            }
 
         if explorer.returncode != 0:
+            file_mappings = self._referenced_file_mappings(
+                project,
+                explorer.stderr,
+            )
+            print()
+            print("[DiscoPoP] Pattern detection failed")
+            print(f"[DiscoPoP] Return code: {explorer.returncode}")
+            if file_mappings:
+                print()
+                print("[DiscoPoP] Referenced source files:")
+                for file_id, path in file_mappings.items():
+                    print(f"  {file_id}: {path}")
+            if explorer.stdout:
+                print()
+                print("[DiscoPoP] STDOUT:")
+                print(explorer.stdout)
+            if explorer.stderr:
+                print()
+                print("[DiscoPoP] STDERR:")
+                print(explorer.stderr)
             return {
                 "success": False,
                 "analysis_available": False,
@@ -185,6 +216,7 @@ class DiscoPoPRunner:
                 "returncode": explorer.returncode,
                 "stdout": explorer.stdout,
                 "stderr": explorer.stderr,
+                "referenced_file_mappings": file_mappings,
             }
 
         # ------------------------------------------------------------
@@ -233,8 +265,8 @@ class DiscoPoPRunner:
         if not seq_settings.exists():
             seq_settings.write_text(
                 """{
-    "CC": "clang",
-    "CXX": "clang++",
+    "CC": "gcc",
+    "CXX": "g++",
     "CFLAGS": "",
     "CXXFLAGS": ""
 }
@@ -273,6 +305,8 @@ class DiscoPoPRunner:
             f"""#!/bin/bash
 set -e
 
+cd "$DP_PROJECT_ROOT_DIR"
+
 {command}
 """,
             encoding="utf-8",
@@ -289,6 +323,8 @@ set -e
         path.write_text(
             f"""#!/bin/bash
 set -e
+
+cd "$DP_PROJECT_ROOT_DIR"
 
 {command}
 """,
@@ -356,6 +392,33 @@ set -e
             for p in directory.rglob("*")
             if p.is_file()
         )
+
+    @staticmethod
+    def _referenced_file_mappings(
+        project: Path,
+        output: str,
+    ) -> dict[str, str]:
+        """Resolve file IDs mentioned by Explorer diagnostics."""
+        referenced_ids = set(
+            re.findall(r"(?:line |Start Loop )(\d+):", output)
+        )
+
+        if not referenced_ids:
+            return {}
+
+        mapping_file = project / ".discopop" / "FileMapping.txt"
+        try:
+            lines = mapping_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return {}
+
+        mappings: dict[str, str] = {}
+        for line in lines:
+            file_id, separator, path = line.partition("\t")
+            if separator and file_id in referenced_ids:
+                mappings[file_id] = path
+
+        return mappings
 
     def _create_arguments(
         self,

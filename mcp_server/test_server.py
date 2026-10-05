@@ -69,30 +69,35 @@ class TestDiscoPopMCPServer(unittest.TestCase):
 class TestToolSets(unittest.TestCase):
     """The --tools selection: what a client is offered, and what it may call."""
 
-    _SETUP_TOOL_NAMES = {
-        "initialize_discopop_directory",
-        "set_compile_script",
-        "create_execution_configuration",
-    }
+    _SETUP_TOOL_NAMES = {"prepare_project_analysis"}
 
     def __names(self, tool_set: str) -> set[str]:
         return {mod.TOOL.name for mod in TOOL_SETS[tool_set]}
 
     def test_the_default_set_offers_every_tool(self) -> None:
         self.assertTrue(self._SETUP_TOOL_NAMES <= self.__names("all"))
+        self.assertEqual(self._SETUP_TOOL_NAMES & self.__names("all"), self._SETUP_TOOL_NAMES)
         self.assertEqual(DiscoPopMCPServer().tool_set, "all")
 
     def test_the_analysis_set_leaves_out_the_project_setup_tools(self) -> None:
         names = self.__names("analysis")
         self.assertFalse(names & self._SETUP_TOOL_NAMES)
         # everything the analysis route needs is still there
-        for expected in ("gather_data", "get_parallelization_patches", "run_auto_tuning", "manage_patches"):
+        for expected in (
+            "gather_data",
+            "get_parallelization_patches",
+            "run_auto_tuning",
+            "manage_patches",
+            "diagnose_parallel_correctness",
+            "trace_symbol_slice",
+            "compare_threaded_executions",
+        ):
             self.assertIn(expected, names)
 
     def test_a_hidden_tool_is_not_dispatchable_and_says_why(self) -> None:
         server = DiscoPopMCPServer(tool_set="analysis")
-        self.assertNotIn("initialize_discopop_directory", {mod.TOOL.name for mod in server._tools})
-        message = unavailable_tool_message("initialize_discopop_directory", "analysis")
+        self.assertNotIn("prepare_project_analysis", {mod.TOOL.name for mod in server._tools})
+        message = unavailable_tool_message("prepare_project_analysis", "analysis")
         self.assertIn("not available in the 'analysis' tool set", message)
 
     def test_an_unknown_name_is_still_an_unknown_tool(self) -> None:

@@ -1,6 +1,6 @@
 {
   "name": "distributed_histogram_pipeline",
-  "task": "The repository contains a multi-stage OpenMP data-processing system with shared support code and a correctness suite. Its results are deterministic with one thread, but parallel executions violate the expected end-to-end contract. Investigate the implementation and repair every root cause of the incorrect parallel behavior. Preserve the public interfaces, configuration values, stage ordering, and stage arithmetic. The existing OpenMP parallelism must remain in place: do not remove or serialize parallel loops, and satisfy the pragma baseline check. Build and run the complete test suite; all existing tests must pass.",
+  "task": "A distributed event-ingestion service builds bucket histograms and then enriches each event from the bucket totals. One worker is deterministic, but concurrent histogram updates lose events. Repair every synchronization and shared-state defect while retaining the OpenMP work-sharing loops and the histogram arithmetic.",
   "language": "C++17",
   "parallel_framework": "OpenMP",
   "build_command": "make all",

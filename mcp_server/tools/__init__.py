@@ -8,7 +8,8 @@
 
 from mcp_server.tools import (
     analyze_code_region,
-    create_execution_configuration,
+    compare_threaded_executions,
+    diagnose_parallel_correctness,
     gather_data,
     get_configurations,
     get_data_dependencies,
@@ -16,8 +17,8 @@ from mcp_server.tools import (
     get_parallelization_patches,
     get_parallelization_recommendations,
     get_project_summary,
-    initialize_discopop_directory,
     manage_patches,
+    prepare_project_analysis,
     run_auto_tuning,
-    set_compile_script,
+    trace_symbol_slice,
 )

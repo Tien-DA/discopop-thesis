@@ -16,5 +16,5 @@ uint64_t Lookup::get(std::size_t k) const {
     if (!ready_) {
         build();
     }
-    return memo_[k % len_];
+    return memo_[(k + 1) % len_];
 }

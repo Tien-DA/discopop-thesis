@@ -4,7 +4,7 @@
 
 uint64_t spread(uint64_t value, unsigned rounds) {
     for (unsigned r = 0; r < rounds; ++r) {
-        value = mix64(value + r);
+        value = mix64(value + r + 1);
     }
     return value;
 }

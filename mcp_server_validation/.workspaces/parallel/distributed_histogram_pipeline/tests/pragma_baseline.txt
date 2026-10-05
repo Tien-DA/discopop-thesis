@@ -12,3 +12,4 @@ src/module_resample.cpp 32
 src/module_signal.cpp 29
 src/module_stats.cpp 30
 src/module_transform.cpp 26
+src/module_histogram.cpp 3

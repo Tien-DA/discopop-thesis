@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from benchmark.case import BenchmarkCase
 
 
@@ -26,10 +28,12 @@ class BenchmarkSelector:
                 f"{case.name}"
             )
 
+        print("  all. Run all benchmark tasks")
+
         print("=" * 80)
 
     @staticmethod
-    def select(cases: list[BenchmarkCase]) -> BenchmarkCase:
+    def select(cases: list[BenchmarkCase]) -> Optional[BenchmarkCase]:
         """
         Display available cases and ask the user to select one.
         """
@@ -43,19 +47,25 @@ class BenchmarkSelector:
 
         while True:
             try:
-                choice = int(
-                    input(
-                        "\nSelect benchmark task "
-                        f"[1-{len(cases)}]: "
-                    ).strip()
-                )
+                choice = input(
+                    "\nSelect benchmark task "
+                    f"[1-{len(cases)} or all]: "
+                ).strip().lower()
 
+            except EOFError:
+                raise RuntimeError("No benchmark task was selected.") from None
+
+            if choice == "all":
+                return None
+
+            try:
+                index = int(choice)
             except ValueError:
-                print("Please enter a valid number.")
+                print("Please enter a valid number or 'all'.")
                 continue
 
-            if 1 <= choice <= len(cases):
-                selected = cases[choice - 1]
+            if 1 <= index <= len(cases):
+                selected = cases[index - 1]
 
                 print()
                 print("Selected benchmark:")
@@ -68,5 +78,5 @@ class BenchmarkSelector:
 
             print(
                 f"Invalid selection. "
-                f"Please choose a number between 1 and {len(cases)}."
+                f"Please choose a number between 1 and {len(cases)}, or 'all'."
             )

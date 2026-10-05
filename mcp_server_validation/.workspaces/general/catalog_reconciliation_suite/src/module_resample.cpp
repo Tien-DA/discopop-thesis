@@ -17,7 +17,6 @@ void stage_resample_00(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[2];
     std::vector<uint64_t>& out = ctx.buf[3];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         uint64_t acc = 288088877210641127ULL;
         for (int d = -3; d <= 3; ++d) {
@@ -34,7 +33,6 @@ void stage_resample_01(Context& ctx) {
     const std::size_t n = ctx.cfg.items;
     const std::size_t blocks = ctx.cfg.blocks;
     const std::size_t len = ctx.cfg.scratch_len;
-    #pragma omp parallel for
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         uint64_t* slot = ctx.pool.acquire(blk);
         for (std::size_t k = 0; k < len; ++k) {
@@ -46,7 +44,6 @@ void stage_resample_01(Context& ctx) {
         }
         ctx.partial[blk] = acc;
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[i], ctx.partial[i % blocks]);
     }
@@ -57,7 +54,6 @@ void stage_resample_02(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[4];
     std::vector<uint64_t>& out = ctx.buf[5];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[ctx.table[i]], in[i] ^ 338323747593100731ULL);
     }
@@ -68,7 +64,6 @@ void stage_resample_03(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[5];
     std::vector<uint64_t>& out = ctx.buf[0];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = combine(in[i], in[(i + 40) % n]) ^ 241142627297569ULL;
         const uint64_t u = combine(in[i], 182141117994829ULL);
@@ -81,12 +76,10 @@ void stage_resample_04(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[0];
     std::vector<uint64_t>& out = ctx.buf[1];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t v = combine(in[i], in[(i + 32) % n]) ^ 144388595672079ULL;
         out[i] = v;
         if ((v & 7) == 0) {
-            #pragma omp atomic
             ctx.hits += 1;
         }
     }
@@ -99,7 +92,6 @@ void stage_resample_05(Context& ctx) {
     const std::size_t n = ctx.cfg.items;
     const std::size_t blocks = ctx.cfg.blocks;
     const std::size_t per_block = (n + blocks - 1) / blocks;
-    #pragma omp parallel for
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         const std::size_t lo = blk * per_block;
         const std::size_t hi = lo + per_block < n ? lo + per_block : n;
@@ -113,7 +105,6 @@ void stage_resample_05(Context& ctx) {
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         total = combine(total, ctx.partial[blk]);
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[i], total);
     }
@@ -124,7 +115,6 @@ void stage_resample_06(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[2];
     std::vector<uint64_t>& out = ctx.buf[3];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[ctx.table[i]], in[i] ^ 680254386915432243ULL);
     }
@@ -135,7 +125,6 @@ void stage_resample_07(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[3];
     std::vector<uint64_t>& out = ctx.buf[4];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = fold_range(in.data(), n, i, 4);
         const uint64_t u = mix64(in[i] + 254552174577695ULL) ^ rotl64(in[i], 32);
@@ -150,7 +139,6 @@ void stage_resample_08(Context& ctx) {
     const std::size_t n = ctx.cfg.items;
     const std::size_t blocks = ctx.cfg.blocks;
     const std::size_t per_block = (n + blocks - 1) / blocks;
-    #pragma omp parallel for
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         const std::size_t lo = blk * per_block;
         const std::size_t hi = lo + per_block < n ? lo + per_block : n;
@@ -164,7 +152,6 @@ void stage_resample_08(Context& ctx) {
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         total = combine(total, ctx.partial[blk]);
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[i], total);
     }
@@ -175,7 +162,6 @@ void stage_resample_09(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[5];
     std::vector<uint64_t>& out = ctx.buf[0];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[ctx.table[i]], in[i] ^ 1054900136671420243ULL);
     }
@@ -186,7 +172,6 @@ void stage_resample_10(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[0];
     std::vector<uint64_t>& out = ctx.buf[1];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = in[i] * 3148754001497ULL + rotl64(in[(i + 33) % n], 30);
         const uint64_t u = spread(in[i] ^ 142299471558249ULL, 3);
@@ -200,8 +185,7 @@ void stage_resample_11(Context& ctx) {
     std::vector<uint64_t>& out = ctx.buf[2];
     const std::size_t n = ctx.cfg.items;
     const Lookup lookup(ctx.cfg.scratch_len, 411578671031498697ULL);
-    (void)lookup.get(0);  // build the table before the parallel region
-    #pragma omp parallel for
+    (void)lookup.get(0);  // build the table before use
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[i], lookup.get(i));
     }
@@ -212,7 +196,6 @@ void stage_resample_12(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[2];
     std::vector<uint64_t>& out = ctx.buf[3];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = mix64(in[i]) - mix64(in[n - 1 - i]) + 225866792036977ULL;
         const uint64_t u = rotl64(in[i] ^ 135286400430101ULL, 29) - mix64(in[i]);
@@ -225,11 +208,9 @@ void stage_resample_13(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[3];
     std::vector<uint64_t>& out = ctx.buf[4];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t v = mix64(in[i]) - mix64(in[n - 1 - i]) + 88592925904461ULL;
         out[i] = v;
-        #pragma omp critical(peak_update)
         {
             if (v > ctx.peak) {
                 ctx.peak = v;
@@ -244,11 +225,9 @@ void stage_resample_14(Context& ctx) {
     std::vector<uint64_t>& out = ctx.buf[5];
     const std::size_t n = ctx.cfg.items;
     uint64_t total = 0;
-    #pragma omp parallel for reduction(+ : total)
     for (std::size_t i = 0; i < n; ++i) {
         total += mix64(in[i] ^ 898903791843074393ULL);
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = in[i] + total;
     }
@@ -259,7 +238,6 @@ void stage_resample_15(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[5];
     std::vector<uint64_t>& out = ctx.buf[0];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = in[i] * 227575234729601ULL + rotl64(in[(i + 23) % n], 43);
         const uint64_t u = mix64(in[i] + 103688146988409ULL) ^ rotl64(in[i], 52);
@@ -272,7 +250,6 @@ void stage_resample_16(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[0];
     std::vector<uint64_t>& out = ctx.buf[1];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = combine(in[i], in[(i + 14) % n]) ^ 108823513480085ULL;
         const uint64_t u = rotl64(in[i] ^ 257519808772065ULL, 18) - mix64(in[i]);
@@ -287,7 +264,6 @@ void stage_resample_17(Context& ctx) {
     const std::size_t n = ctx.cfg.items;
     const std::size_t blocks = ctx.cfg.blocks;
     const std::size_t len = ctx.cfg.scratch_len;
-    #pragma omp parallel for
     for (std::size_t blk = 0; blk < blocks; ++blk) {
         uint64_t* slot = ctx.pool.acquire(blk);
         for (std::size_t k = 0; k < len; ++k) {
@@ -299,7 +275,6 @@ void stage_resample_17(Context& ctx) {
         }
         ctx.partial[blk] = acc;
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[i], ctx.partial[i % blocks]);
     }
@@ -310,7 +285,6 @@ void stage_resample_18(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[2];
     std::vector<uint64_t>& out = ctx.buf[3];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = in[i] * 209813722744831ULL + rotl64(in[(i + 14) % n], 53);
         const uint64_t u = mix64(in[i] + 100580615020673ULL) ^ rotl64(in[i], 48);
@@ -324,11 +298,9 @@ void stage_resample_19(Context& ctx) {
     std::vector<uint64_t>& out = ctx.buf[4];
     const std::size_t n = ctx.cfg.items;
     uint64_t total = 0;
-    #pragma omp parallel for reduction(+ : total)
     for (std::size_t i = 0; i < n; ++i) {
         total += mix64(in[i] ^ 391393424359403725ULL);
     }
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = in[i] + total;
     }
@@ -339,7 +311,6 @@ void stage_resample_20(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[4];
     std::vector<uint64_t>& out = ctx.buf[5];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         uint64_t acc = 1130710166147427979ULL;
         for (int d = -2; d <= 2; ++d) {
@@ -354,7 +325,6 @@ void stage_resample_21(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[5];
     std::vector<uint64_t>& out = ctx.buf[0];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = mix64(in[i]) - mix64(in[n - 1 - i]) + 98701823944467ULL;
         const uint64_t u = combine(in[i], 154087690068257ULL);
@@ -367,7 +337,6 @@ void stage_resample_22(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[0];
     std::vector<uint64_t>& out = ctx.buf[1];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = combine(in[ctx.table[i]], in[i] ^ 357637405684862153ULL);
     }
@@ -378,7 +347,6 @@ void stage_resample_23(Context& ctx) {
     const std::vector<uint64_t>& in = ctx.buf[1];
     std::vector<uint64_t>& out = ctx.buf[2];
     const std::size_t n = ctx.cfg.items;
-    #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
         const uint64_t t = mix64(in[i]) - mix64(in[n - 1 - i]) + 100509350719113ULL;
         const uint64_t u = combine(in[i], 218570196889389ULL);

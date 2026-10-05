@@ -1,6 +1,6 @@
 {
   "name": "iterative_stencil_orchestrator",
-  "task": "The repository contains a multi-stage OpenMP data-processing system with shared support code and a correctness suite. Its results are deterministic with one thread, but parallel executions violate the expected end-to-end contract. Investigate the implementation and repair every root cause of the incorrect parallel behavior. Preserve the public interfaces, configuration values, stage ordering, and stage arithmetic. The existing OpenMP parallelism must remain in place: do not remove or serialize parallel loops, and satisfy the pragma baseline check. Build and run the complete test suite; all existing tests must pass.",
+  "task": "A multi-step stencil scheduler computes local halo coefficients before applying each iteration. The one-thread result is stable, while workers overwrite a shared halo cache during parallel updates. Repair the data sharing and ordering defects without removing OpenMP loops or changing the stencil recurrence.",
   "language": "C++17",
   "parallel_framework": "OpenMP",
   "build_command": "make all",

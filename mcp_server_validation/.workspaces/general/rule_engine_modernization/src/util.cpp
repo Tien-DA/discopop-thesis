@@ -16,7 +16,7 @@ std::size_t clamp_index(long index, std::size_t n) {
 }
 
 uint64_t fold_range(const uint64_t* data, std::size_t n, std::size_t center, unsigned radius) {
-    uint64_t acc = 0x1234567ULL;
+    uint64_t acc = 0x1234568ULL;
     for (long d = -static_cast<long>(radius); d <= static_cast<long>(radius); ++d) {
         acc = combine(acc, data[clamp_index(static_cast<long>(center) + d, n)]);
     }

@@ -29,6 +29,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
+import time
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -554,6 +556,32 @@ class OpenCodeClient:
             "last_step_cache_write_tokens": 0,
         }
 
+    @staticmethod
+    def _record_step_usage(
+        usage: dict[str, int],
+        step_input: int,
+        step_output: int,
+        step_total: int,
+        step_reasoning: int,
+        step_cache_read: int,
+        step_cache_write: int,
+    ) -> int:
+        """Add one inference step to a usage bucket."""
+        usage["steps"] += 1
+        usage["input_tokens"] += step_input
+        usage["output_tokens"] += step_output
+        usage["total_tokens"] += step_total
+        usage["reasoning_tokens"] += step_reasoning
+        usage["cache_read_tokens"] += step_cache_read
+        usage["cache_write_tokens"] += step_cache_write
+        usage["last_step_input_tokens"] = step_input
+        usage["last_step_output_tokens"] = step_output
+        usage["last_step_total_tokens"] = step_total
+        usage["last_step_reasoning_tokens"] = step_reasoning
+        usage["last_step_cache_read_tokens"] = step_cache_read
+        usage["last_step_cache_write_tokens"] = step_cache_write
+        return usage["steps"]
+
     # ==================================================================
     # MCP USAGE
     # ==================================================================
@@ -675,6 +703,22 @@ class OpenCodeClient:
             "tools": tool_counts,
         }
 
+    @staticmethod
+    def _extract_session_id(raw_events: list[dict[str, Any]]) -> Optional[str]:
+        """Find the OpenCode session identifier in a tolerant JSON event stream."""
+        pending: list[Any] = list(raw_events)
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                for key in ("sessionID", "session_id", "sessionId"):
+                    session_id = value.get(key)
+                    if isinstance(session_id, str) and session_id:
+                        return session_id
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
+        return None
+
     # ==================================================================
     # RUN OPENCODE
     # ==================================================================
@@ -685,6 +729,7 @@ class OpenCodeClient:
         workspace: Path,
         mcp_enabled: bool = False,
         events_file: Optional[Path] = None,
+        session_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """
         Run one OpenCode coding-agent invocation.
@@ -703,6 +748,10 @@ class OpenCodeClient:
 
         events_file:
             Optional JSONL file for raw OpenCode events.
+
+        session_id:
+            Continue this OpenCode conversation.  Omit it only for the first
+            turn of a benchmark mode.
         """
 
         workspace = Path(
@@ -758,10 +807,23 @@ class OpenCodeClient:
             "--auto",
             "--model",
             opencode_model,
+        ]
+
+        if session_id:
+            command.extend(
+                [
+                    "--session",
+                    session_id,
+                ]
+            )
+
+        command.extend(
+            [
             "--dir",
             str(workspace),
             prompt,
-        ]
+            ]
+        )
 
         print()
         print("=" * 70)
@@ -802,11 +864,24 @@ class OpenCodeClient:
             # START OPENCODE
             # ----------------------------------------------------------
 
-            result = subprocess.run(
+            invocation_start_time = time.perf_counter()
+
+            process = subprocess.Popen(
                 command,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
+                bufsize=1,
             )
+
+            stderr_lines: list[str] = []
+
+            def collect_stderr() -> None:
+                if process.stderr is not None:
+                    stderr_lines.extend(process.stderr)
+
+            stderr_thread = threading.Thread(target=collect_stderr)
+            stderr_thread.start()
 
             # ----------------------------------------------------------
             # STORAGE
@@ -818,6 +893,18 @@ class OpenCodeClient:
                 self._empty_usage()
             )
 
+            warm_usage = (
+                self._empty_usage()
+                if mcp_enabled
+                else None
+            )
+
+            step_records: list[
+                tuple[tuple[int, int, int, int, int, int], bool, bool, float]
+            ] = []
+            setup_seen_in_step = False
+            task_mcp_seen_in_step = False
+
             raw_events: list[
                 dict[str, Any]
             ] = []
@@ -826,7 +913,14 @@ class OpenCodeClient:
             # PARSE JSON EVENT STREAM
             # ----------------------------------------------------------
 
-            for line in result.stdout.splitlines():
+            stdout_lines: list[str] = []
+
+            if process.stdout is None:
+                raise RuntimeError("OpenCode stdout pipe was not created.")
+
+            for line in process.stdout:
+
+                stdout_lines.append(line)
 
                 line = line.strip()
 
@@ -855,6 +949,26 @@ class OpenCodeClient:
                 event_type = event.get(
                     "type"
                 )
+
+                if event_type == "tool_use" and mcp_enabled:
+                    part = event.get("part", {})
+                    if isinstance(part, dict):
+                        tool_name = str(part.get("tool", ""))
+                        normalized_name = tool_name.lower()
+                        is_mcp_tool = (
+                            tool_name in self.mcp_tool_names
+                            or "discopop" in normalized_name
+                            or "mcp" in normalized_name
+                        )
+                        setup_tools = ("prepare_project_analysis",)
+                        is_setup_tool = tool_name in setup_tools or tool_name.endswith(
+                            tuple(f"_{tool}" for tool in setup_tools)
+                        )
+                        if is_mcp_tool:
+                            if is_setup_tool:
+                                setup_seen_in_step = True
+                            else:
+                                task_mcp_seen_in_step = True
 
                 # ======================================================
                 # TEXT EVENT
@@ -980,71 +1094,33 @@ class OpenCodeClient:
                     # Step number
                     # --------------------------------------------------
 
-                    usage["steps"] += 1
-
-                    step_number = (
-                        usage["steps"]
+                    step_number = self._record_step_usage(
+                        usage,
+                        step_input,
+                        step_output,
+                        step_total,
+                        step_reasoning,
+                        step_cache_read,
+                        step_cache_write,
                     )
 
-                    # --------------------------------------------------
-                    # CUMULATIVE usage
-                    # --------------------------------------------------
-
-                    usage[
-                        "input_tokens"
-                    ] += step_input
-
-                    usage[
-                        "output_tokens"
-                    ] += step_output
-
-                    usage[
-                        "total_tokens"
-                    ] += step_total
-
-                    usage[
-                        "reasoning_tokens"
-                    ] += step_reasoning
-
-                    usage[
-                        "cache_read_tokens"
-                    ] += step_cache_read
-
-                    usage[
-                        "cache_write_tokens"
-                    ] += step_cache_write
-
-                    # --------------------------------------------------
-                    # LAST STEP usage
-                    #
-                    # Every step overwrites these fields, therefore
-                    # after the event stream finishes they contain
-                    # usage from the final inference step.
-                    # --------------------------------------------------
-
-                    usage[
-                        "last_step_input_tokens"
-                    ] = step_input
-
-                    usage[
-                        "last_step_output_tokens"
-                    ] = step_output
-
-                    usage[
-                        "last_step_total_tokens"
-                    ] = step_total
-
-                    usage[
-                        "last_step_reasoning_tokens"
-                    ] = step_reasoning
-
-                    usage[
-                        "last_step_cache_read_tokens"
-                    ] = step_cache_read
-
-                    usage[
-                        "last_step_cache_write_tokens"
-                    ] = step_cache_write
+                    step_records.append(
+                        (
+                            (
+                                step_input,
+                                step_output,
+                                step_total,
+                                step_reasoning,
+                                step_cache_read,
+                                step_cache_write,
+                            ),
+                            setup_seen_in_step,
+                            task_mcp_seen_in_step,
+                            time.perf_counter(),
+                        )
+                    )
+                    setup_seen_in_step = False
+                    task_mcp_seen_in_step = False
 
                     # --------------------------------------------------
                     # DEBUG: print per-step token usage
@@ -1068,6 +1144,36 @@ class OpenCodeClient:
                 self._extract_mcp_usage(
                     raw_events
                 )
+            )
+
+            returned_session_id = self._extract_session_id(raw_events)
+
+            returncode = process.wait()
+            stderr_thread.join()
+            stdout = "".join(stdout_lines)
+            stderr = "".join(stderr_lines)
+
+            warm_start_index = 0
+            warm_start_time = invocation_start_time
+            setup_used = False
+            task_mcp_used = False
+            for index, (_, contains_setup, contains_task_mcp, step_time) in enumerate(step_records):
+                if contains_setup:
+                    setup_used = True
+                    warm_start_index = index + 1
+                    warm_start_time = step_time
+                if contains_task_mcp:
+                    task_mcp_used = True
+
+            warm_started = mcp_enabled and setup_used and task_mcp_used
+            if warm_started and warm_usage is not None:
+                for step_usage, _, _, _ in step_records[warm_start_index:]:
+                    self._record_step_usage(warm_usage, *step_usage)
+
+            warm_latency_seconds = (
+                time.perf_counter() - warm_start_time
+                if warm_started
+                else None
             )
 
             # ----------------------------------------------------------
@@ -1104,15 +1210,15 @@ class OpenCodeClient:
             # OPENCODE FAILURE
             # ----------------------------------------------------------
 
-            if result.returncode != 0:
+            if returncode != 0:
 
                 raise RuntimeError(
                     "OpenCode failed with exit code "
-                    f"{result.returncode}\n\n"
+                    f"{returncode}\n\n"
                     f"stdout:\n"
-                    f"{result.stdout}\n\n"
+                    f"{stdout}\n\n"
                     f"stderr:\n"
-                    f"{result.stderr}"
+                    f"{stderr}"
                 )
 
             # ----------------------------------------------------------
@@ -1122,40 +1228,37 @@ class OpenCodeClient:
             print()
             print("OpenCode finished.")
 
-            print(
-                f"Steps:          "
-                f"{usage['steps']}"
-            )
+            def print_usage_summary(
+                title: str,
+                usage_summary: dict[str, int],
+            ) -> None:
+                print(title)
+                print(f"Steps:             {usage_summary['steps']}")
+                print(f"Input tokens:      {usage_summary['input_tokens']:,}")
+                print(f"Output tokens:     {usage_summary['output_tokens']:,}")
+                print(f"Total tokens:      {usage_summary['total_tokens']:,}")
+                print(
+                    "Last-step input:   "
+                    f"{usage_summary['last_step_input_tokens']:,}"
+                )
+                print(
+                    "Last-step output:  "
+                    f"{usage_summary['last_step_output_tokens']:,}"
+                )
+                print(
+                    "Last-step total:   "
+                    f"{usage_summary['last_step_total_tokens']:,}"
+                )
 
-            print(
-                f"Input tokens:      "
-                f"{usage['input_tokens']:,}"
-            )
+            if mcp_enabled:
+                print_usage_summary("Cold usage (end-to-end):", usage)
 
-            print(
-                f"Output tokens:     "
-                f"{usage['output_tokens']:,}"
-            )
+            else:
+                print_usage_summary("Usage:", usage)
 
-            print(
-                f"Total tokens:      "
-                f"{usage['total_tokens']:,}"
-            )
-
-            print(
-                f"Last-step input:   "
-                f"{usage['last_step_input_tokens']:,}"
-            )
-
-            print(
-                f"Last-step output:  "
-                f"{usage['last_step_output_tokens']:,}"
-            )
-
-            print(
-                f"Last-step total:   "
-                f"{usage['last_step_total_tokens']:,}"
-            )
+            if warm_started and warm_usage is not None:
+                print()
+                print_usage_summary("Warm usage (after MCP setup):", warm_usage)
 
             print(
                 f"MCP used:       "
@@ -1194,13 +1297,19 @@ class OpenCodeClient:
                     output_text
                 ),
 
-                "stderr": result.stderr,
+                "stderr": stderr,
 
                 "returncode": (
-                    result.returncode
+                    returncode
                 ),
 
                 "usage": usage,
+
+                "warm_usage": (
+                    warm_usage if warm_started else None
+                ),
+
+                "warm_latency_seconds": warm_latency_seconds,
 
                 "mcp_enabled": (
                     mcp_enabled
@@ -1210,6 +1319,10 @@ class OpenCodeClient:
 
                 "invocation_id": (
                     invocation_id
+                ),
+
+                "session_id": (
+                    returned_session_id or session_id
                 ),
 
                 "events_file": (
