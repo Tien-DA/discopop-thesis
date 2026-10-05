@@ -95,7 +95,7 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for more options or [CLAUDE_INTEGRATION.md]
 
 ## Available Tools
 
-The server exposes one setup tool and further tools for running the pipeline and querying its results; call `tools/list`, or see `mcp_server/tools/`, for the complete set.
+The default server exposes a compact workflow for setup, evidence gathering, correctness diagnosis, validation, scaling, and measured tuning. Call `tools/list` for that set; start with `--tools all` only when a low-level diagnostic primitive is necessary.
 
 ### 1. `prepare_project_analysis`
 
@@ -244,7 +244,7 @@ python -m unittest discover -s mcp_server -p "test_*.py" -v
 Or with pytest:
 
 ```bash
-pytest mcp_server/test_server.py -v
+pytest mcp_server -v
 ```
 
 ## Guidelines for LLM Agents
@@ -273,7 +273,7 @@ So `gather_data` rebuilds the project plainly (`par_settings.json`, falling back
 
 ### Limiting the exposed tools
 
-`--tools analysis` leaves out `prepare_project_analysis`, which is neither listed nor callable in that mode. Use it when pointing an agent at a project that is already configured: it removes setup-only context and rules out a reset of the analysis artefacts.
+The default `--tools default` exposes the eight tools that support the normal agent workflow and avoids loading redundant raw-data schemas into every agent turn. `--tools analysis` uses the same set without `prepare_project_analysis` for an already prepared project. `--tools all` exposes the complete API, including low-level dependency, configuration, result, and patch-inspection tools for interactive investigation.
 
 ## Daemon Mode
 

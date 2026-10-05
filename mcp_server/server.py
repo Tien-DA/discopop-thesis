@@ -36,23 +36,18 @@ from termcolor import colored
 from mcp_server.argument_coercion import coerce_arguments, validation_error
 from mcp_server.setup_mcp import MCPSetup
 
-from mcp_server.tools import (
-    analyze_code_region,
-    compare_threaded_executions,
-    diagnose_parallel_correctness,
+from mcp_server.tools.common.helpers import ToolContext
+from mcp_server.tools.core import (
+    assess_parallel_region,
+    evaluate_parallel_performance,
     gather_data,
-    get_configurations,
-    get_data_dependencies,
-    get_execution_results,
-    get_parallelization_patches,
-    get_parallelization_recommendations,
-    get_project_summary,
     manage_patches,
     prepare_project_analysis,
     run_auto_tuning,
-    trace_symbol_slice,
+    triage_parallel_failure,
+    validate_parallel_behavior,
 )
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.low_level import compare_threaded_executions, diagnose_parallel_correctness, trace_symbol_slice
 
 _LOG_FORMAT = "%(asctime)s  %(levelname)-8s  %(message)s"
 _LOG_DATEFMT = "%H:%M:%S"
@@ -130,64 +125,53 @@ _setup_logging()
 logger = logging.getLogger("discopop-mcp")
 
 _SERVER_INSTRUCTIONS = (
-    "This server exposes DiscoPoP functionality for two primary use cases: "
-    "(1) parallelism detection — instrument a project, run profiling, detect parallel patterns, "
-    "retrieve OpenMP patches, and apply or roll back patches via manage_patches; "
-    "(2) data dependency analysis — query the combined static and dynamic data dependencies "
-    "for arbitrary code regions to support code understanding, refactoring, and correctness checks. "
-    "All DiscoPoP data must be accessed exclusively through the tool calls provided by this server. "
-    "Do not read, list, or inspect .discopop directories or their contents directly via file reads, "
-    "directory listings, or shell commands. "
-    "Those directories contain large binary files, intermediate artefacts, and serialised objects "
-    "that are expensive to parse and consume a large number of tokens. "
-    "The MCP tools return pre-processed, structured summaries at a fraction of the token cost. "
-    "If information appears to be missing, use the tool that produces it "
-    "(e.g. run gather_data before calling get_parallelization_patches or get_data_dependencies) "
-    "rather than reading the underlying files directly. "
-    "The route from an initialized project to parallelized code is: gather_data to profile "
-    "and detect patterns, then run_auto_tuning to measure which combination of the resulting "
-    "suggestions is actually fastest, then manage_patches to apply that combination — or "
-    "run_auto_tuning(apply=true), which does the last two in one call. "
-    "Never decide which patches to apply by reading them: that choice is what run_auto_tuning "
-    "measures, and picking from the diffs by hand throws away the one thing DiscoPoP can "
-    "establish and a reader cannot. Call it BEFORE applying anything — it needs an un-patched "
-    "project, and clears and restores an existing selection to get one. "
-    "IMPORTANT: Always use manage_patches to apply suggested patches — never read patch content "
-    "and apply changes manually. manage_patches delegates all patching work to the "
-    "discopop_patch_applicator binary, which is orders of magnitude faster and consumes far "
-    "fewer tokens than reading patch files and editing source files by hand. "
-    "Use prepare_project_analysis with reset=true to clear stale analysis artefacts "
-    "when the pipeline is in a broken or inconsistent state."
+    "DiscoPoP provides compact, decision-ready evidence for OpenMP correctness and performance. "
+    "Use tools instead of reading .discopop files directly. First establish whether a failure depends on worker "
+    "count, then assess the implicated region before changing it, and validate the repair afterwards. Measure "
+    "scaling only after behavior is stable. Prepare and gather data when dynamic dependency or tuning evidence is "
+    "needed. Each workflow tool returns the next useful decision; use the low-level profile only to investigate an "
+    "unresolved result. Keep requests bounded and use the least expensive applicable workflow."
 )
 
 _ALL_TOOLS = [
-    analyze_code_region,
-    diagnose_parallel_correctness,
-    trace_symbol_slice,
-    compare_threaded_executions,
-    get_configurations,
-    get_execution_results,
-    get_data_dependencies,
-    get_project_summary,
     prepare_project_analysis,
     gather_data,
-    get_parallelization_patches,
-    get_parallelization_recommendations,
+    triage_parallel_failure,
+    assess_parallel_region,
+    validate_parallel_behavior,
+    evaluate_parallel_performance,
     run_auto_tuning,
     manage_patches,
+    compare_threaded_executions,
+    diagnose_parallel_correctness,
+    trace_symbol_slice,
 ]
 
 # The single agent-facing setup tool replaces the former three-step sequence. A caller
 # working on a prepared project can still choose --tools analysis to omit it entirely.
-_SETUP_TOOLS = [
+_SETUP_TOOLS = [prepare_project_analysis]
+
+# The default is intentionally small.  Every exposed schema is placed in the
+# agent's context, so exposing historical/raw-data views that duplicate a
+# workflow result makes tool selection worse and costs tokens on every turn.
+# The complete API remains available explicitly through --tools all.
+_DEFAULT_TOOLS = [
     prepare_project_analysis,
+    gather_data,
+    triage_parallel_failure,
+    assess_parallel_region,
+    validate_parallel_behavior,
+    evaluate_parallel_performance,
+    run_auto_tuning,
+    manage_patches,
 ]
 
 TOOL_SETS = {
+    "default": _DEFAULT_TOOLS,
+    "analysis": [tool for tool in _DEFAULT_TOOLS if tool not in _SETUP_TOOLS],
     "all": _ALL_TOOLS,
-    "analysis": [tool for tool in _ALL_TOOLS if tool not in _SETUP_TOOLS],
 }
-DEFAULT_TOOL_SET = "all"
+DEFAULT_TOOL_SET = "default"
 
 DEFAULT_DAEMON_PORT = 7777
 
@@ -201,7 +185,7 @@ def unavailable_tool_message(name: str, tool_set: str) -> str:
     if any(mod.TOOL.name == name for mod in _ALL_TOOLS):
         return (
             f"Tool '{name}' is not available in the '{tool_set}' tool set. "
-            "Restart the server without '--tools " + tool_set + "' to enable it."
+            "Restart with '--tools all' to enable the complete API."
         )
     return f"Unknown tool: {name}"
 
@@ -505,7 +489,7 @@ Examples:
   %(prog)s --debug                     # Start with debug logging
   %(prog)s --daemon                    # Start a persistent daemon for a live console
   %(prog)s --daemon --daemon-port 8888 # Daemon on a custom port
-  %(prog)s --tools analysis            # Hide the project setup tools
+  %(prog)s --tools all                 # Expose low-level diagnostic primitives too
   %(prog)s --setup <agent>             # Configure a specific agent
   %(prog)s --setup <agent> --debug     # Configure with debug logging enabled
   %(prog)s --setup-all                 # Configure all agents
@@ -537,9 +521,8 @@ Available agents: {', '.join(agent_choices)}
         choices=sorted(TOOL_SETS),
         default=DEFAULT_TOOL_SET,
         help=(
-            "Which tools to expose. 'all' (default) offers every tool; 'analysis' leaves out "
-            "the project setup tool (prepare_project_analysis) — use it against a project that is already "
-            "configured, so those tools can neither be listed nor called"
+            "Which tools to expose. 'default' (default) offers the compact agent workflow; "
+            "'analysis' omits setup for an already prepared project; 'all' exposes low-level diagnostic primitives."
         ),
     )
     parser.add_argument(

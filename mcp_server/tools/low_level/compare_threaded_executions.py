@@ -13,7 +13,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
 
@@ -21,19 +21,18 @@ TOOL = Tool(
     name="compare_threaded_executions",
     annotations=ToolAnnotations(readOnlyHint=True),
     description=(
-        "Run the representative execute.sh from a prepared DiscoPoP configuration with several "
-        "OMP_NUM_THREADS values and repetitions. It returns compact output fingerprints and stability "
-        "comparisons to the one-thread baseline, helping distinguish a concurrency defect from a normal failure."
+        "Compare repeated one- and multi-thread runs using compact output fingerprints. "
+        "Use it to confirm a suspected OpenMP-only failure."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "project_path": {"type": "string", "description": "Absolute project root."},
-            "config_name": {"type": "string", "description": "Prepared execution configuration name."},
+            "config_name": {"type": "string", "description": "Prepared configuration name."},
             "thread_counts": {"type": "array", "items": {"type": "integer"},
                 "description": "Positive thread counts. Default: [1, 2, 4]."},
             "repetitions": {"type": "integer", "description": "Runs per count, 1-10. Default: 3.", "default": 3},
-            "timeout_seconds": {"type": "integer", "description": "Per-run timeout, 1-600. Default: 60.", "default": 60},
+            "timeout_seconds": {"type": "integer", "description": "Seconds per run. Default: 60.", "default": 60},
         },
         "required": ["project_path", "config_name"],
         "additionalProperties": False,

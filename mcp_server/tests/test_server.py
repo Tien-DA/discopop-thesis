@@ -12,13 +12,11 @@
 Test suite for the DiscoPoP MCP Server
 """
 
-import json
 import logging
 import unittest
 from unittest.mock import patch
 
-from mcp_server.server import TOOL_SETS, DiscoPopMCPServer, unavailable_tool_message
-from mcp_server.tools import get_configurations, get_execution_results
+from mcp_server.server import DEFAULT_TOOL_SET, TOOL_SETS, DiscoPopMCPServer, unavailable_tool_message
 
 
 class TestDiscoPopMCPServer(unittest.TestCase):
@@ -43,28 +41,6 @@ class TestDiscoPopMCPServer(unittest.TestCase):
         # Just verify no errors occur
         self.assertIsNotNone(tools)
 
-    def test_get_configurations_handler(self) -> None:
-        """Test get_configurations tool"""
-        result = get_configurations.handle({"project_path": "/test/project"}, self.server._ctx)
-        self.assertIsNotNone(result)
-        self.assertEqual(len(result), 1)
-        text_content = result[0].text
-        data = json.loads(text_content)
-        self.assertEqual(data["status"], "success")
-        self.assertEqual(data["project_path"], "/test/project")
-        self.assertIn("configurations", data)
-
-    def test_get_execution_results_handler(self) -> None:
-        """Test get_execution_results tool"""
-        result = get_execution_results.handle({"project_path": "/test/project"}, self.server._ctx)
-        self.assertIsNotNone(result)
-        self.assertEqual(len(result), 1)
-        text_content = result[0].text
-        data = json.loads(text_content)
-        self.assertEqual(data["status"], "success")
-        self.assertEqual(data["project_path"], "/test/project")
-        self.assertIn("execution_results", data)
-
 
 class TestToolSets(unittest.TestCase):
     """The --tools selection: what a client is offered, and what it may call."""
@@ -74,10 +50,20 @@ class TestToolSets(unittest.TestCase):
     def __names(self, tool_set: str) -> set[str]:
         return {mod.TOOL.name for mod in TOOL_SETS[tool_set]}
 
-    def test_the_default_set_offers_every_tool(self) -> None:
-        self.assertTrue(self._SETUP_TOOL_NAMES <= self.__names("all"))
-        self.assertEqual(self._SETUP_TOOL_NAMES & self.__names("all"), self._SETUP_TOOL_NAMES)
-        self.assertEqual(DiscoPopMCPServer().tool_set, "all")
+    def test_the_default_set_offers_the_compact_workflow(self) -> None:
+        names = self.__names("default")
+        self.assertTrue(self._SETUP_TOOL_NAMES <= names)
+        self.assertEqual(DiscoPopMCPServer().tool_set, DEFAULT_TOOL_SET)
+        self.assertLess(len(names), len(self.__names("all")))
+        self.assertEqual(names, {
+            "prepare_project_analysis", "gather_data", "triage_parallel_failure", "assess_parallel_region",
+            "validate_parallel_behavior", "evaluate_parallel_performance", "run_auto_tuning", "manage_patches",
+        })
+
+    def test_all_set_adds_only_low_level_diagnostic_primitives(self) -> None:
+        names = self.__names("all")
+        self.assertTrue({"compare_threaded_executions", "diagnose_parallel_correctness", "trace_symbol_slice"} <= names)
+        self.assertEqual(len(names), 11)
 
     def test_the_analysis_set_leaves_out_the_project_setup_tools(self) -> None:
         names = self.__names("analysis")
@@ -85,12 +71,11 @@ class TestToolSets(unittest.TestCase):
         # everything the analysis route needs is still there
         for expected in (
             "gather_data",
-            "get_parallelization_patches",
             "run_auto_tuning",
             "manage_patches",
-            "diagnose_parallel_correctness",
-            "trace_symbol_slice",
-            "compare_threaded_executions",
+            "triage_parallel_failure",
+            "assess_parallel_region",
+            "validate_parallel_behavior",
         ):
             self.assertIn(expected, names)
 
@@ -99,6 +84,7 @@ class TestToolSets(unittest.TestCase):
         self.assertNotIn("prepare_project_analysis", {mod.TOOL.name for mod in server._tools})
         message = unavailable_tool_message("prepare_project_analysis", "analysis")
         self.assertIn("not available in the 'analysis' tool set", message)
+        self.assertIn("--tools all", message)
 
     def test_an_unknown_name_is_still_an_unknown_tool(self) -> None:
         self.assertEqual(unavailable_tool_message("no_such_tool", "analysis"), "Unknown tool: no_such_tool")

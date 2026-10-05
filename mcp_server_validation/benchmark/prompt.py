@@ -32,9 +32,12 @@ Additional instructions:
 Do not just describe the solution.
 Modify the source code directly in the repository.
 Leave the repository in a working state with the task solved.
-The test suite is intentionally unavailable in this workspace. Do not attempt to
-find, recreate, or modify tests; an independent evaluator will run them after you
-finish.
+The validation suite is intentionally unavailable in this workspace. Do not try to
+find, access, or modify it. You may create focused, temporary tests or standalone
+test harnesses to check your own hypotheses; keep them outside `tests/`, do not
+recreate the hidden suite, and remove them before you finish. If the evaluator
+reports a named failed behavior after an attempt, treat that behavior as a concrete
+requirement and use a small self-authored test to validate your repair.
 """
 
     # ==================================================================
@@ -77,7 +80,7 @@ Use the repository itself and the normal development tools to understand and sol
 BENCHMARK CONDITION:
 You are working in the FULL_DISCOPOP condition.           
 In addition to the repository source code, the complete DiscoPoP analysis is available in:{discopop_path}
-Don't use only repository source code to solve the problem. You have to use the DiscoPoP analysis
+Do not use only repository source code to solve the problem. You have to use the DiscoPoP analysis
 The DiscoPoP MCP server is not available in this condition.
 """
 
@@ -97,8 +100,14 @@ You are working in the MCP condition.
 DiscoPoP is available through the DiscoPoP MCP server.
 
 MANDATORY MCP USAGE:
-DiscoPoP analysis has not been prepared in advance. Before using any other DiscoPoP tool, call prepare_project_analysis with GCC/G++ as the base compilers, the repository build command, and a small representative run command.
-After setup, decide autonomously which available DiscoPoP tools, if any, can help solve this task. Use only information relevant to the task.
-Use the information you obtain together with your own source-code inspection to identify and fix the problem. Then build the project. The tests are hidden and will be run by an independent evaluator.
+Use DiscoPoP substantively, not as a ceremonial single call. Before editing a
+parallel correctness issue, obtain MCP evidence that either establishes the
+worker-count-dependent behavior or assesses the affected parallel region. After
+the repair, use MCP evidence to validate the behavior across workers. For a
+performance task, establish correctness before measuring scaling or tuning.
+Decide autonomously which tools provide each required decision, in what order,
+and with which arguments. Use only relevant evidence together with source-code
+inspection to identify and fix the problem. Then build the project. The tests
+are hidden and will be run by an independent evaluator.
 Do not assume that DiscoPoP analysis already exists, and do not inspect DiscoPoP analysis files directly; access it through the MCP tools.
 """

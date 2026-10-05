@@ -14,9 +14,8 @@ import unittest
 from typing import Any
 from unittest import mock
 
-from mcp_server.tools import manage_patches
-from mcp_server.tools.helpers import applicator_failure_details
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext, applicator_failure_details
+from mcp_server.tools.core import manage_patches
 
 
 class TestApplicatorFailureDetails(unittest.TestCase):

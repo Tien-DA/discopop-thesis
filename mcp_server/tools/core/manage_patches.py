@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 from mcp.types import TextContent, Tool
 
-from mcp_server.tools.helpers import (
+from mcp_server.tools.common.helpers import (
     APPLICATOR_OK_RETURNCODES,
     ToolContext,
     applicator_failure_details,
@@ -26,49 +26,25 @@ logger = logging.getLogger("discopop-mcp")
 TOOL = Tool(
     name="manage_patches",
     description=(
-        "Apply, roll back, clear, load, or list applied parallelization patches via "
-        "discopop_patch_applicator. Call get_parallelization_patches first to "
-        "discover available pattern IDs.\n\n"
-        "Actions:\n"
-        "  list    — Return the IDs of currently applied suggestions. No files changed.\n"
-        "  apply   — Apply the patches for the given suggestion_ids. The source files "
-        "are modified in place. suggestion_ids must be non-empty.\n"
-        "  rollback — Undo previously applied suggestions identified by suggestion_ids. "
-        "suggestion_ids must be non-empty.\n"
-        "  clear   — Reset all source files to their original (un-patched) state. "
-        "The list of applied suggestions is preserved on disk so it can be restored "
-        "with load. Existing saves are overwritten.\n"
-        "  load    — Re-apply suggestions that were saved by a previous clear operation.\n\n"
-        "Which patches to apply is a question run_auto_tuning answers by measuring; prefer "
-        "it over picking ids by hand, and run it BEFORE applying anything, since it needs "
-        "an un-patched project.\n\n"
-        "Rollback and clear reverse each patch in the source file it was applied to, so they "
-        "only work while that file still matches the patch. Editing a patched file by hand "
-        "and then rolling back fails; make manual changes on top of a selection you intend "
-        "to keep, or re-run gather_data to regenerate the patches for the current sources.\n\n"
-        "Requires gather_data to have been run first (patch files must exist under "
-        ".discopop/patch_generator/ and FileMapping.txt must be present)."
+        "List, apply, roll back, clear, or reload generated parallelization patches. "
+        "Requires gather_data. Prefer run_auto_tuning to choose IDs; apply and rollback modify source files."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "project_path": {
                 "type": "string",
-                "description": "Absolute path to the project root directory.",
+                "description": "Absolute project root.",
             },
             "action": {
                 "type": "string",
                 "enum": ["apply", "rollback", "clear", "load", "list"],
-                "description": "Operation to perform on the patches.",
+                "description": "Patch operation.",
             },
             "suggestion_ids": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": (
-                    "List of suggestion IDs to apply or roll back. "
-                    "Required for 'apply' and 'rollback' actions; ignored for all others. "
-                    "IDs match the pattern_id values returned by get_parallelization_patches."
-                ),
+                "description": "IDs for apply or rollback.",
             },
         },
         "required": ["project_path", "action"],

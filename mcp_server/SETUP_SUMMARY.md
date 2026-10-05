@@ -20,10 +20,17 @@ A complete, production-ready Model Context Protocol (MCP) server for DiscoPoP th
 mcp_server/
 ├── server.py                      # Main MCP server implementation
 ├── __init__.py                    # Package initialization
-├── test_server.py                 # Unit and integration tests
 ├── demo_test.py                   # Demo script showing all tools in action
 ├── setup_mcp.py                   # Agent configuration module (MCPSetup class)
 ├── pyproject.toml                 # Package configuration & dependencies
+│
+├── tools/
+│   ├── core/                      # Tools exposed by the default profile
+│   ├── low_level/                 # Diagnostic primitives exposed only by --tools all
+│   └── common/                    # Shared tool implementation support
+├── tests/
+│   ├── test_server.py             # Server integration tests
+│   └── tools/                     # Tool-specific unit tests
 │
 ├── README.md                      # Main documentation (features, tools, usage)
 ├── INSTALLATION.md                # Installation guide
@@ -44,10 +51,10 @@ mcp_server/
   - Full logging of incoming calls and outgoing responses
 
 ### Testing
-- **test_server.py** (~100 lines)
-  - Unit tests for tool handlers
-  - Integration tests for server modes
-  - Test coverage for error handling
+- **test_server.py**
+  - Server integration tests and tool-set coverage
+- **tests/tools/**
+  - Tool-specific unit tests, grouped separately from implementation
 
 ### Configuration
 - **pyproject.toml**
@@ -147,7 +154,7 @@ Retrieve execution results from prior program executions
 
 ### For Development
 1. Install dev dependencies: `pip install -e ".[dev]"`
-2. Run tests: `pytest mcp_server/test_server.py -v`
+2. Run tests: `pytest mcp_server -v`
 3. Add real DiscoPoP integration to the tool handlers
 
 ### For Distribution
@@ -260,7 +267,7 @@ Claude: I'll help you parallelize your code. First, let me
 python -m pytest mcp_server/ -v
 
 # Run specific test
-python -m pytest mcp_server/test_server.py::TestDiscoPopMCPServer::test_profiling_info_handler -v
+python -m pytest mcp_server -v
 
 # With coverage
 pytest --cov=mcp_server mcp_server/
@@ -299,7 +306,7 @@ To extend the server:
 1. Add new tool schema in `_register_tools()`
 2. Add handler method `_handle_your_tool()`
 3. Register in tool call handler
-4. Add tests in `test_server.py`
+4. Add server tests in `test_server.py` or tool tests in `tests/tools/`
 5. Update [README.md](README.md) with new tool documentation
 
 ## Version

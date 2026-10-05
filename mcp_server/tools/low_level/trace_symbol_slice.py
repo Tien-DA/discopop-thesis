@@ -9,8 +9,8 @@ from typing import Any
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
-from mcp_server.tools.analysis_support import declarations, function_calls, functions, lines, relative, symbol_matches
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.analysis_support import declarations, function_calls, functions, lines, relative, symbol_matches
+from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
 
@@ -18,19 +18,18 @@ TOOL = Tool(
     name="trace_symbol_slice",
     annotations=ToolAnnotations(readOnlyHint=True),
     description=(
-        "Return a compact caller/callee and mutable-state slice rooted at a C/C++ function or method. "
-        "Use this when a defect may cross files or helpers, such as a lookup, accumulator, cache, or "
-        "kernel called from an OpenMP region. Results name only locations and relations, never dump source."
+        "Return a bounded caller/callee and mutable-state slice for a C/C++ symbol. "
+        "Use it to trace cross-file helpers without dumping source."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "project_path": {"type": "string", "description": "Absolute project root."},
-            "symbol": {"type": "string", "description": "Function or method name, for example Lookup::get."},
+            "symbol": {"type": "string", "description": "Function or method name."},
             "direction": {"type": "string", "enum": ["callers", "callees", "both"], "default": "both"},
             "depth": {"type": "integer", "description": "Call-graph hops, 1-4. Default: 2.", "default": 2},
             "include_state_accesses": {"type": "boolean", "default": True,
-                "description": "Include static/global-like declarations referenced by slice functions."},
+                "description": "Include referenced static/global-like declarations."},
             "max_nodes": {"type": "integer", "description": "Maximum returned functions, 1-50. Default: 20.", "default": 20},
         },
         "required": ["project_path", "symbol"],

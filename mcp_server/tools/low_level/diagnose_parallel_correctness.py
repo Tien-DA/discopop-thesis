@@ -10,8 +10,8 @@ from typing import Any
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
-from mcp_server.tools.analysis_support import closing_brace, functions, lines, nearest_function, relative, source_files
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.analysis_support import closing_brace, functions, lines, nearest_function, relative, source_files
+from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
 _WRITE = re.compile(r"\b(?P<name>[A-Za-z_]\w*)\s*(?P<index>(?:\[[^\]]+\])*)\s*(?P<op>\+\+|--|\+=|-=|\*=|/=|=)")
@@ -22,10 +22,8 @@ TOOL = Tool(
     name="diagnose_parallel_correctness",
     annotations=ToolAnnotations(readOnlyHint=True),
     description=(
-        "Inspect existing OpenMP loops and rank likely shared-state correctness hazards. "
-        "It identifies contended indexed updates, read-modify-write operations, static scratch state, "
-        "and available DiscoPoP dependency evidence. Use it after gather_data to find repair targets; "
-        "it does not propose adding parallelism or modify source."
+        "Rank shared-state hazards in OpenMP code when one worker passes but multiple workers fail. "
+        "Works from source immediately and adds dependency evidence after gather_data."
     ),
     inputSchema={
         "type": "object",

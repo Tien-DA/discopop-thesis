@@ -124,7 +124,7 @@ Server logs:
 ### Run tests
 
 ```bash
-python -m pytest mcp_server/test_server.py -v
+python -m pytest mcp_server/tests/test_server.py -v
 ```
 
 ### Check type hints

@@ -19,7 +19,7 @@ from mcp.types import TextContent, Tool, ToolAnnotations
 from discopop_library.ProjectManager.utilities.deriveSettingsFiles import derive_settings_files
 from discopop_library.ProjectManager.utilities.reset import reset_project
 from discopop_library.ProjectManager.utilities.scriptFiles import write_script_file
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
 
@@ -28,33 +28,30 @@ TOOL = Tool(
     name="prepare_project_analysis",
     annotations=ToolAnnotations(idempotentHint=True),
     description=(
-        "Prepare a project for DiscoPoP analysis in one call. It creates the "
-        "DiscoPoP directory, writes the build script, and creates the execution "
-        "configuration required by gather_data. Use GCC/G++ by default for OpenMP "
-        "projects. Then call gather_data with the returned configuration name."
+        "Create DiscoPoP build and execution configuration for a project. Then call gather_data."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "project_path": {
                 "type": "string",
-                "description": "Absolute path to the project root.",
+                "description": "Absolute project root.",
             },
             "build_command": {
                 "type": "string",
-                "description": "Build command run from the project root, for example: make all.",
+                "description": "Build command run from the project root.",
             },
             "run_command": {
                 "type": "string",
-                "description": "Small representative program run, for example: ./build/app.",
+                "description": "Small representative program run.",
             },
             "config_name": {
                 "type": "string",
-                "description": "Execution configuration name. Default: benchmark.",
+                "description": "Configuration name. Default: benchmark.",
             },
             "reset": {
                 "type": "boolean",
-                "description": "Clear old DiscoPoP analysis artefacts before setup. Default: false.",
+                "description": "Clear old analysis artifacts. Default: false.",
             },
             "base_cc": {
                 "type": "string",

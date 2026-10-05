@@ -19,42 +19,16 @@ from mcp.types import TextContent, Tool
 
 from discopop_library.ProjectManager.configurations.compile_script import resolve_compile_script_path
 from discopop_library.ProjectManager.configurations.execution import execute_configuration
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
 
 TOOL = Tool(
     name="gather_data",
     description=(
-        "Run the complete DiscoPoP data collection pipeline and detect parallelization patterns. "
-        "Call this after prepare_project_analysis. "
-        "\n\n"
-        "The pipeline consists of two phases:\n"
-        "\n"
-        "OPTIONAL — Hotspot detection (enabled when hotspot_config_names is non-empty):\n"
-        "  1. Compile with hotspot instrumentation (hd_settings.json).\n"
-        "  2. Run the binary once per config in hotspot_config_names to accumulate timing data.\n"
-        "     Use at least 2 configs with different input sizes for accurate classification.\n"
-        "  3. Analyse timing data to classify regions as YES/MAYBE/NO hotspots.\n"
-        "  If hotspot detection is enabled, pattern analysis focuses on hotspot regions.\n"
-        "  If omitted, pattern analysis covers the entire codebase.\n"
-        "\n"
-        "REQUIRED — Data collection and pattern detection:\n"
-        "  4. Compile with DiscoPoP instrumentation (dp_settings.json).\n"
-        "  5. Run the instrumented binary to collect runtime dependency traces.\n"
-        "     NOTE: significant runtime overhead expected — use small inputs.\n"
-        "  6. Analyse with discopop_explorer to detect parallelization opportunities.\n"
-        "\n"
-        "Each step is automatically skipped when its outputs are already current "
-        "relative to the source files. Use force=true to re-run all steps unconditionally. "
-        "\n\n"
-        "Steps 1 and 4 compile in the project itself, so the project's build directory is "
-        "rebuilt plainly (par_settings.json) before this tool returns: a build left over "
-        "from instrumentation produces binaries that are orders of magnitude slower than "
-        "the program and may abort, so building and running the program by hand afterwards "
-        "is safe. "
-        "\n\n"
-        "On success, call get_parallelization_patches to retrieve the generated patches."
+        "Collect runtime dependencies and detect parallelization opportunities for a prepared project. "
+        "Use a small representative configuration. Optional hotspot configurations focus analysis on hot code; "
+        "two different workloads improve classification. Current results are reused unless force=true."
     ),
     inputSchema={
         "type": "object",
@@ -65,29 +39,20 @@ TOOL = Tool(
             },
             "config_name": {
                 "type": "string",
-                "description": (
-                    "Name of the execution configuration to use for compilation and profiling "
-                    "(steps 4 and 5). Must match a directory under .discopop/project/configs/."
-                ),
+                "description": "Prepared configuration name.",
             },
             "hotspot_config_names": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": (
-                    "Optional. List of configuration names for hotspot profiling runs (step 2). "
-                    "At least 1 name is required to enable hotspot detection. "
-                    "Using ≥2 configs with different input sizes improves classification accuracy, "
-                    "but a single config is accepted (results may be less accurate). "
-                    "If omitted, hotspot detection is skipped entirely."
-                ),
+                "description": "Optional configurations for hotspot profiling.",
             },
             "timeout_seconds": {
                 "type": "integer",
-                "description": ("Maximum time in seconds for each individual pipeline step. Default: 3600."),
+                "description": "Maximum seconds per pipeline step. Default: 3600.",
             },
             "force": {
                 "type": "boolean",
-                "description": ("Set to true to re-run all steps even if outputs are already current. Default: false."),
+                "description": "Re-run current analysis steps. Default: false.",
             },
         },
         "required": ["project_path", "config_name"],
@@ -723,16 +688,12 @@ def _count_suggestions(project_path: str) -> Optional[int]:
 def _next_step_hint(suggestion_count: Optional[int]) -> str:
     """What to do with the patches that were just generated."""
     if suggestion_count == 0:
-        return (
-            "No parallelization suggestion was found. get_data_dependencies explains why a " "given loop was rejected."
-        )
+        return "No parallelization suggestion was found. Assess the target region before changing its OpenMP structure."
     found = f"{suggestion_count} parallelization suggestions were generated. " if suggestion_count else ""
     return (
         found + "Call run_auto_tuning to have DiscoPoP measure which combination of them is "
         "fastest (add apply=true to apply that combination in the same call) — do this before "
-        "applying anything, since the search needs an un-patched project. "
-        "get_parallelization_patches lists the suggestions, and get_data_dependencies "
-        "explains the dependencies behind an individual one."
+        "applying anything, since the search needs an un-patched project."
     )
 
 

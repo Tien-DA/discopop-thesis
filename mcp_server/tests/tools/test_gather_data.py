@@ -13,8 +13,8 @@ import unittest
 from typing import Any, Callable, List, Optional, Tuple
 from unittest import mock
 
-from mcp_server.tools import gather_data
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext
+from mcp_server.tools.core import gather_data
 
 CONFIG_NAME = "default"
 

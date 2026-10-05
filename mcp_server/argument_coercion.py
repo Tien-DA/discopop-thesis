@@ -15,7 +15,7 @@ templated rather than natively typed -- emit *every* argument as a string::
 
     run_auto_tuning(apply="true")            -> 'true' is not of type 'boolean'
     gather_data(hotspot_config_names='["a"]') -> '["a"]' is not of type 'array'
-    get_data_dependencies(start_line="130")   -> '130' is not of type 'integer'
+    assess_parallel_region(start_line="130")  -> '130' is not of type 'integer'
 
 The call then fails before any DiscoPoP code runs, and the model has no way to
 tell a type error from the tool being unavailable: in one measured benchmark run

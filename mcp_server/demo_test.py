@@ -13,7 +13,7 @@
 import json
 
 from mcp_server.server import DiscoPopMCPServer
-from mcp_server.tools import get_configurations, get_execution_results, prepare_project_analysis
+from mcp_server.tools.core import prepare_project_analysis, triage_parallel_failure
 
 
 def demo() -> None:
@@ -33,17 +33,10 @@ def demo() -> None:
     print("Response:", json.loads(result[0].text))
     print()
 
-    # Test 2: get_configurations
-    print("TEST 2: Get Configurations")
+    # Test 2: triage on a non-existent project shows the structured error route.
+    print("TEST 2: Triage Parallel Failure")
     print("-" * 70)
-    result = get_configurations.handle({"project_path": "./example"}, server._ctx)
-    print("Response:", json.loads(result[0].text))
-    print()
-
-    # Test 3: get_execution_results
-    print("TEST 3: Get Execution Results")
-    print("-" * 70)
-    result = get_execution_results.handle({"project_path": "./example"}, server._ctx)
+    result = triage_parallel_failure.handle({"project_path": "./nonexistent"}, server._ctx)
     print("Response:", json.loads(result[0].text))
     print()
 

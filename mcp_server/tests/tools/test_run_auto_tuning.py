@@ -14,8 +14,8 @@ import unittest
 from typing import Any, Optional
 from unittest import mock
 
-from mcp_server.tools import run_auto_tuning
-from mcp_server.tools.helpers import ToolContext
+from mcp_server.tools.common.helpers import ToolContext
+from mcp_server.tools.core import run_auto_tuning
 
 
 class _FakeProcess:
@@ -237,7 +237,7 @@ class TestRunAutoTuning(unittest.TestCase):
         data = self.__handle(config_name="does_not_exist")
         self.assertEqual(data["status"], "error")
         self.assertIn("does_not_exist", data["message"])
-        self.assertIn("get_configurations", data["message"])
+        self.assertIn("prepare_project_analysis", data["message"])
 
     def __completed_run_progress(self) -> None:
         self.__write_progress(

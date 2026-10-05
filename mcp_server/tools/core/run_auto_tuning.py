@@ -25,7 +25,7 @@ from discopop_library.HostpotLoader.HotspotNodeType import HotspotNodeType
 from discopop_library.HostpotLoader.detailed_hotspot_loader import hotspots_json_path, load_detailed_hotspots
 from discopop_library.ProjectManager.configurations.validation import VALIDATE_SCRIPT_NAME
 from discopop_library.ProjectManager.gui.plots.data import parse_progress_jsonl
-from mcp_server.tools.helpers import (
+from mcp_server.tools.common.helpers import (
     APPLICATOR_OK_RETURNCODES,
     ToolContext,
     applicator_failure_details,
@@ -51,91 +51,32 @@ _OUTPUT_TAIL_LINES = 40
 TOOL = Tool(
     name="run_auto_tuning",
     description=(
-        "Measure which combination of the generated parallelization suggestions is "
-        "actually fastest, and return it as a list of suggestion IDs — optionally applying "
-        "it in the same call (apply=true).\n\n"
-        "This is the answer to 'which of these patches should I apply?'. The autotuner "
-        "compiles, executes and validates candidate combinations in throwaway copies of the "
-        "project and keeps the fastest one that still produces a valid result, so the "
-        "selection is measured rather than guessed. Call it after gather_data and BEFORE "
-        "applying any patch.\n\n"
-        "By default the tool leaves the sources as it found them and only reports the "
-        "selection, which manage_patches(action='apply', suggestion_ids=[...]) then "
-        "persists. Pass apply=true to have the selected combination applied right away, "
-        "which is the shortest route from profiling data to parallelized code.\n\n"
-        "Patches that are already applied are cleared before the search (the tuner has to "
-        "measure an un-patched project) and restored afterwards — unless apply=true, where "
-        "the new selection replaces them. Nothing has to be cleared by hand.\n\n"
-        "Preconditions:\n"
-        "  - gather_data must have been run (patches, line mapping and detection results "
-        "must exist).\n"
-        "  - For the best search, run gather_data with hotspot_config_names set (ideally two "
-        "configurations of different input sizes). Omit 'algorithm' and the tool then picks "
-        "the hotspot-guided search; without hotspot results it falls back to the greedy "
-        "forward search on its own.\n\n"
-        "COST: this is a measurement run — one compilation plus one execution of the project "
-        "per candidate. The hotspot-guided search evaluates a few candidates per hot code "
-        "region, the greedy search roughly one per suggestion. Bound it with "
-        "timeout_seconds; when the timeout expires the search stops and the best "
-        "combination measured so far is still returned, with status 'timeout'.\n\n"
-        "How far the correctness claim reaches depends on the configuration: without a "
-        "validate.sh a candidate counts as valid as soon as it exits with code 0, so a "
-        "parallelization that corrupts the output is indistinguishable from a correct one. "
-        "Define validation before calling this tool when output checking is required. "
-        "before tuning whenever the program's output can be checked. The result carries a "
-        "'warnings' list whenever the selection rests on weaker evidence than it appears to."
+        "Measure generated parallelization candidates and return the fastest valid combination. "
+        "Requires gather_data and temporarily restores any applied patches. Set apply=true to persist "
+        "the winner. Bound this compile-and-run search with timeout_seconds."
     ),
     inputSchema={
         "type": "object",
         "properties": {
             "project_path": {
                 "type": "string",
-                "description": "Absolute path to the project root directory (the parent of .discopop).",
+                "description": "Absolute project root.",
             },
             "config_name": {
                 "type": "string",
-                "description": (
-                    "Name of the execution configuration to tune. Must match a directory "
-                    "under .discopop/project/configs/. Its execute.sh should use an input "
-                    "that is representative of a production run — the selection is only as "
-                    "meaningful as the workload it was measured on."
-                ),
+                "description": "Prepared configuration used to measure candidates.",
             },
             "algorithm": {
                 "type": "integer",
-                "description": (
-                    "Search algorithm. Omit this to let the tool choose: 6 when hotspot "
-                    "detection results are available, otherwise 4. The chosen value and the "
-                    "reason are reported back in 'algorithm' and 'algorithm_selection'. "
-                    "Pass a value only to override that choice; an explicit 6 without hotspot "
-                    "results is refused rather than silently replaced.\n"
-                    "  0 — no combination; measures every suggestion on its own.\n"
-                    "  1 — linear combination; accumulates suggestions that keep the result valid.\n"
-                    "  3 — evolutionary combination; uses randomness, so it is not reproducible.\n"
-                    "  4 — greedy forward search; one pass over all suggestions, O(N) evaluations. "
-                    "Needs no hotspot information, which is why it is the fallback.\n"
-                    "  5 — coordinate descent; repeated bit-flip passes until no pass improves.\n"
-                    "  6 — hotspot-guided region descent; deterministic and measurement-frugal, "
-                    "but requires hotspot detection results."
-                ),
+                "description": "Optional algorithm override; omit for automatic selection.",
             },
             "apply": {
                 "type": "boolean",
-                "description": (
-                    "Apply the selected combination to the source files once the search is "
-                    "done, instead of only reporting it. Default: false. With apply=true the "
-                    "result carries 'applied' with the ids that reached the code; the "
-                    "selection can be undone afterwards with "
-                    "manage_patches(action='rollback', suggestion_ids=[...])."
-                ),
+                "description": "Apply the winning combination. Default: false.",
             },
             "timeout_seconds": {
                 "type": "integer",
-                "description": (
-                    "Maximum wall clock time for the whole search. Default: 3600. When it "
-                    "expires the tuner is stopped and the best combination measured so far "
-                    "is returned with status 'timeout'."
-                ),
+                "description": "Maximum seconds for the complete search. Default: 3600.",
             },
         },
         "required": ["project_path", "config_name"],
@@ -203,8 +144,7 @@ def _validate_preconditions(project_path: str, config_name: str, dot_dp: str) ->
         if os.path.basename(missing) == config_name or f"configs/{config_name}" in missing:
             return (
                 f"Configuration '{config_name}' is incomplete or does not exist (missing: {missing}). "
-                "Use get_configurations to list the available configurations, or "
-                "prepare_project_analysis to create one."
+                "Run prepare_project_analysis to create a valid configuration."
             )
         return (
             f"The project is not ready for auto tuning (missing: {missing}). "
