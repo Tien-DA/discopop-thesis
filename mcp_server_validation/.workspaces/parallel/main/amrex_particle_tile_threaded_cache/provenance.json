@@ -1,0 +1,18 @@
+{
+  "tier": "main",
+  "project": "AMReX",
+  "project_url": "https://github.com/AMReX-Codes/amrex",
+  "language": "C++",
+  "parallel_framework": "OpenMP",
+  "buggy_commit": "b5e000952a0190f94320bb3f6549cdf7e0d8c895",
+  "fixed_commit": "6f2c4aff90ae3b8a5df8877008de4bc21a71b00b",
+  "fixed_commit_url": "https://github.com/AMReX-Codes/amrex/commit/6f2c4aff90ae3b8a5df8877008de4bc21a71b00b",
+  "fixed_commit_subject": "Fix for race condition when using getConstParticleTileData in threaded region. (#5404)",
+  "buggy_source": "Src/Particle/AMReX_ParticleTile.H",
+  "buggy_source_sha256": "84f6f2794c2c1e6036295db0f5c265e77e46bf33da1914fe5e9ab2579fb8f0ca",
+  "upstream_regression_test": "Tests/Particles/Redistribute/main.cpp",
+  "post_fix_test_sha256": "2d7565ea2f5fea581baaca8ab80926e00bdcf303802b3cb9e65dc579bddd9a77",
+  "upstream_patch": "tests/upstream-fix.patch",
+  "snapshot_method": "git archive of buggy_commit for source; fixed_commit supplies the hidden regression-test revision and patch",
+  "license_file": "LICENSE"
+}

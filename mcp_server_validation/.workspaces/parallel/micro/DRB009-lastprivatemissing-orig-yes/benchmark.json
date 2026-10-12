@@ -1,0 +1,9 @@
+{
+  "name": "drb009_lastprivate_missing",
+  "task": "Repair the OpenMP data race in the supplied DataRaceBench program. Preserve the parallel loop and its computation; do not disable OpenMP or replace the loop with sequential code. The program must pass the race and output validation.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app"
+}

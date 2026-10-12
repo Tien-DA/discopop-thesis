@@ -1,0 +1,1 @@
+{"name":"ompscr_loopb_bad1","task":"Repair the OpenMP data race in this OmpSCR dependency-loop program. Preserve OpenMP parallelism and the algorithm's loop structure.","language":"C11","parallel_framework":"OpenMP","build_command":"make all","test_command":"make test","profiling_command":"./build/app 10000 100"}

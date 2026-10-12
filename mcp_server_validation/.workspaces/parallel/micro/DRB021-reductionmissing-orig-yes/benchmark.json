@@ -1,0 +1,1 @@
+{"name":"drb021_missing_reduction","task":"Repair the OpenMP data race in the supplied DataRaceBench program. Preserve parallel computation and pass race and output validation.","language":"C11","parallel_framework":"OpenMP","build_command":"make all","test_command":"make test","profiling_command":"./build/app"}

@@ -1,0 +1,9 @@
+{
+  "name": "amrex_particle_tile_threaded_cache",
+  "task": "Repair the real OpenMP race in this historical AMReX snapshot. Preserve the library API and OpenMP parallel execution. The upstream Redistribute regression test and the race-detector evaluation must pass.",
+  "language": "C++20",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "OMP_NUM_THREADS=4 make all"
+}

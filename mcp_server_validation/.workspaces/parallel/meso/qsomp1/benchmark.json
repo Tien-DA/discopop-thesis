@@ -1,0 +1,1 @@
+{"name":"ompscr_qsomp1","task":"Repair the OpenMP data race in this OmpSCR C++ parallel quicksort program. Preserve parallel quicksort behavior and its work-sharing structure.","language":"C++17","parallel_framework":"OpenMP","build_command":"make all","test_command":"make test","profiling_command":"./build/app 100000 4 1000"}

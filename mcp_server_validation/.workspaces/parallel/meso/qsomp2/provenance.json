@@ -1,0 +1,1 @@
+{"suite":"OmpSCR","version":"2.0","upstream_url":"https://github.com/utpalbora/OmpSCR_v2.0","upstream_commit":"d277761f6fdc22cfcb52893385cbb802d592d729","source":"applications/cpp_sortOpenMP/cpp_qsomp2.cpp","ground_truth":"race-positive"}

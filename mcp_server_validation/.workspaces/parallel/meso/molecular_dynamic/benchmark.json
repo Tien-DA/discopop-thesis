@@ -1,0 +1,1 @@
+{"name":"ompscr_molecular_dynamic","task":"Repair the OpenMP data race in this OmpSCR molecular-dynamics program. Preserve the parallel simulation and its numerical computation.","language":"C11","parallel_framework":"OpenMP","build_command":"make all","test_command":"make test","profiling_command":"./build/app 500 20"}
