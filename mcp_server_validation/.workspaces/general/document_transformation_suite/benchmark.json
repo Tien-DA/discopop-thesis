@@ -1,9 +1,0 @@
-{
-  "name": "document_transformation_suite",
-  "task": "A deterministic document-transformation pipeline no longer produces its reference digests. Trace the data transformations and repair every root cause. Range folds must include both endpoints of their requested window, and whole-buffer digests must incorporate each element with its zero-based position exactly once. Preserve public interfaces, pipeline order, configuration values, and unrelated arithmetic. Build the project; an independent evaluator will verify the complete correctness suite.",
-  "language": "C++17",
-  "category": "general",
-  "build_command": "make all",
-  "test_command": "make test",
-  "profiling_command": "./build/app"
-}

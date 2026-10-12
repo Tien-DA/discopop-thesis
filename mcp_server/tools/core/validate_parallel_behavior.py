@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from pathlib import Path
+import re
 
 from mcp.types import TextContent, Tool, ToolAnnotations
 
@@ -12,6 +14,7 @@ from mcp_server.tools.common.helpers import ToolContext
 from mcp_server.tools.low_level import compare_threaded_executions
 
 logger = logging.getLogger("discopop-mcp")
+_OMP_PRAGMA = re.compile(r"^\s*#pragma\s+omp\b")
 
 TOOL = Tool(
     name="validate_parallel_behavior",
@@ -42,6 +45,24 @@ def _payload(result: list[TextContent]) -> dict[str, Any]:
         return {}
 
 
+def _structure_contract(project_path: str) -> dict[str, Any]:
+    path = Path(project_path) / ".discopop" / "mcp_server" / "openmp_structure.json"
+    try:
+        baseline = json.loads(path.read_text()).get("openmp_pragmas", {})
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return {"available": False}
+    regressions = []
+    for relative_path, minimum in baseline.items():
+        source = Path(project_path) / relative_path
+        try:
+            current = sum(1 for line in source.read_text(encoding="utf-8", errors="replace").splitlines() if _OMP_PRAGMA.match(line))
+        except OSError:
+            current = 0
+        if current < int(minimum):
+            regressions.append({"file": relative_path, "baseline_pragmas": minimum, "current_pragmas": current})
+    return {"available": True, "passed": not regressions, "regressions": regressions}
+
+
 def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
     project_path = str(arguments.get("project_path", ""))
     config_name = str(arguments.get("config_name", ""))
@@ -59,7 +80,8 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
             {"threads": row.get("threads"), "stable": row.get("stable"), "matches_baseline": row.get("matches_baseline"), "fingerprints": row.get("fingerprints")}
             for row in rows if not row.get("stable") or not row.get("matches_baseline")
         ]
-        passed = not failures
+        structure = _structure_contract(project_path)
+        passed = not failures and (not structure["available"] or structure["passed"])
         result = {
             "status": "success",
             "project_path": project_path,
@@ -68,7 +90,8 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
             "baseline_threads": compared.get("baseline_threads"),
             "validated_thread_counts": [row.get("threads") for row in rows],
             "failures": failures,
-            "next_action": "Build and finish the task." if passed else "Run triage_parallel_failure and assess_parallel_region for the first divergent path.",
+            "parallel_structure": structure,
+            "next_action": "Build and finish the task." if passed else "Restore any reported parallel-structure regression, then run triage_parallel_failure and assess_parallel_region for the first divergent path.",
         }
         ctx.log_response("validate_parallel_behavior", result)
         return [TextContent(type="text", text=json.dumps(result))]

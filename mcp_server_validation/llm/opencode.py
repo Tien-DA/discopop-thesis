@@ -346,7 +346,7 @@ class OpenCodeClient:
 
     API_KEY = "ppkitestapikey"
 
-    MODEL = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    MODEL = "Qwen/Qwen3.8-27B"
 
     PROVIDER = "HPC_Lab"
 
@@ -788,7 +788,7 @@ class OpenCodeClient:
         #
         # Here:
         #
-        #     benchmark/Qwen/Qwen3-Coder-30B-A3B-Instruct
+        #     HPC_Lab/Qwen/Qwen3.8-27B
         # --------------------------------------------------------------
 
         opencode_model = (

@@ -1,9 +1,0 @@
-{
-  "name": "particle_scatter_pipeline",
-  "task": "A particle transport pipeline scatters particles into spatial cells, accumulates cell mass, and feeds those totals back into particle attributes. Parallel particles contend for the same cell counters. Repair all shared updates while preserving the scatter work and existing OpenMP parallelism.",
-  "language": "C++17",
-  "parallel_framework": "OpenMP",
-  "build_command": "make all",
-  "test_command": "make test",
-  "profiling_command": "./build/app"
-}

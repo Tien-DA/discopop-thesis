@@ -1,6 +1,6 @@
 {
     "llm_server_url": "http://localhost:18000/v1",
-    "default_model": "Qwen3-Coder-30B-A3B-Instruct",
+    "default_model": "Qwen/Qwen3.8-27B",
     "default_runs": 3,
     "default_max_steps": 6,
     "enabled_mcp_servers": [

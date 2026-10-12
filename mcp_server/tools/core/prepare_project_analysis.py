@@ -11,6 +11,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,8 @@ from discopop_library.ProjectManager.utilities.scriptFiles import write_script_f
 from mcp_server.tools.common.helpers import ToolContext
 
 logger = logging.getLogger("discopop-mcp")
+_SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"}
+_OMP_PRAGMA = re.compile(r"^\s*#pragma\s+omp\b")
 
 
 TOOL = Tool(
@@ -70,6 +73,21 @@ TOOL = Tool(
 
 def _script(command: str) -> str:
     return "#!/bin/bash\nset -e\ncd \"$DP_PROJECT_ROOT_DIR\"\n" + command + "\n"
+
+
+def _openmp_structure(project: Path) -> dict[str, int]:
+    """Capture source-level OpenMP structure before an agent edits it."""
+    result: dict[str, int] = {}
+    for path in project.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in _SOURCE_SUFFIXES or ".discopop" in path.parts:
+            continue
+        try:
+            count = sum(1 for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if _OMP_PRAGMA.match(line))
+        except OSError:
+            continue
+        if count:
+            result[str(path.relative_to(project))] = count
+    return result
 
 
 def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
@@ -125,11 +143,17 @@ def handle(arguments: dict[str, Any], ctx: ToolContext) -> list[TextContent]:
         execute_path = config_dir / "execute.sh"
         write_script_file(str(execute_path), _script(run_command))
         ctx.log_action(project_path, "prepare_project_analysis", f"Wrote {compile_path.name} and {execute_path}")
+        structure = _openmp_structure(project)
+        contract_path = project / ".discopop" / "mcp_server" / "openmp_structure.json"
+        contract_path.parent.mkdir(parents=True, exist_ok=True)
+        if reset or not contract_path.exists():
+            contract_path.write_text(json.dumps({"openmp_pragmas": structure}, indent=2))
 
         response = {
             "status": "success",
             "project_path": project_path,
             "config_name": config_name,
+            "openmp_structure": {"tracked_files": len(structure), "total_pragmas": sum(structure.values())},
             "message": "Project is ready for analysis. Call gather_data next.",
         }
         ctx.log_response("prepare_project_analysis", response)

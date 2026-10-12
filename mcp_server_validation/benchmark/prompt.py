@@ -1,6 +1,5 @@
 from benchmark.case import BenchmarkCase
 
-
 class TaskPromptBuilder:
     # ==================================================================
     # COMMON PROMPT
@@ -100,14 +99,19 @@ You are working in the MCP condition.
 DiscoPoP is available through the DiscoPoP MCP server.
 
 MANDATORY MCP USAGE:
-Use DiscoPoP substantively, not as a ceremonial single call. Before editing a
-parallel correctness issue, obtain MCP evidence that either establishes the
-worker-count-dependent behavior or assesses the affected parallel region. After
-the repair, use MCP evidence to validate the behavior across workers. For a
-performance task, establish correctness before measuring scaling or tuning.
-Decide autonomously which tools provide each required decision, in what order,
-and with which arguments. Use only relevant evidence together with source-code
-inspection to identify and fix the problem. Then build the project. The tests
-are hidden and will be run by an independent evaluator.
+Use DiscoPoP substantively, not as a ceremonial single call. Setup,
+instrumentation, profiling, and data collection alone do not satisfy this
+requirement for a correctness task: they prepare evidence but do not identify
+the repair. Before editing, obtain a compact MCP diagnostic that establishes
+worker-count-dependent behavior or identifies a concrete shared-state cause or
+repair plan for the affected region. After editing, obtain MCP validation that
+compares repeated multi-worker behavior with the one-worker baseline.
+
+For a performance task, establish correctness before measuring scaling or
+tuning. Decide autonomously which tools provide each required decision, in what
+order, and with which arguments. Use collection only when the chosen diagnostic
+needs dynamic evidence. Use only relevant MCP evidence together with your own
+source-code inspection to identify and fix the problem. Then build the project.
+The tests are hidden and will be run by an independent evaluator.
 Do not assume that DiscoPoP analysis already exists, and do not inspect DiscoPoP analysis files directly; access it through the MCP tools.
 """

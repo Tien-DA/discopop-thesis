@@ -1,9 +1,0 @@
-{
-  "name": "financial_ledger_migration",
-  "task": "A deterministic financial-ledger migration pipeline produces incorrect audit digests. Trace the shared utility and lookup logic and repair every root cause. Repeated mixing must start its round counter at zero, and lookup tables must derive constants from their configured salt without an offset. Preserve public interfaces, pipeline order, configuration values, and unrelated arithmetic. Build the project; an independent evaluator will verify the complete correctness suite.",
-  "language": "C++17",
-  "category": "general",
-  "build_command": "make all",
-  "test_command": "make test",
-  "profiling_command": "./build/app"
-}

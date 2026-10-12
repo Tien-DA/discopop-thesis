@@ -1,9 +1,0 @@
-{
-  "name": "workflow_state_repair",
-  "task": "A deterministic workflow-state pipeline produces incorrect reference digests. Trace the utility layer and repair every root cause. A whole-buffer digest must use its documented seed, and an index equal to the buffer length must clamp to the final valid element. Preserve public interfaces, pipeline order, configuration values, and unrelated arithmetic. Build the project; an independent evaluator will verify the complete correctness suite.",
-  "language": "C++17",
-  "category": "general",
-  "build_command": "make all",
-  "test_command": "make test",
-  "profiling_command": "./build/app"
-}

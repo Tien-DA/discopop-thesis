@@ -49,7 +49,7 @@ class BenchmarkRunner:
     # stop after making an edit that fails the final, external evaluation, though.
     # Give it the evaluator's concrete compiler/test diagnostics and a bounded
     # opportunity to repair its own work before recording the mode as failed.
-    MAX_SESSION_TURNS = 5
+    MAX_SESSION_TURNS = 2
 
     def __init__(
         self,
@@ -927,8 +927,11 @@ The benchmark's independent evaluator reports:
 ```
 
 Fix the actual cause in the existing workspace. Preserve valid changes already made;
-do not restart the task. Tests remain unavailable to you. Make the smallest necessary
-source change, then run `{case.build_command}`. This is continuation turn {turn_number}.
+do not restart the task. Treat every reported structural condition as an invariant:
+inspect your diff before editing again, restore any removed parallel work or other
+required structure, and do not trade correctness for serialization. Tests remain
+unavailable to you. Make the smallest necessary source change, then run
+`{case.build_command}`. This is continuation turn {turn_number}.
 """
 
     @staticmethod

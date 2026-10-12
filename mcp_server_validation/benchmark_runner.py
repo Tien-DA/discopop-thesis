@@ -65,7 +65,7 @@ def main():
     )
 
     model = (
-        "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        "Qwen/Qwen3.8-27B"
     )
 
     print()

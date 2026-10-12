@@ -1,9 +1,0 @@
-{
-  "name": "catalog_reconciliation_suite",
-  "task": "A deterministic catalog reconciliation pipeline produces incorrect checksums for both its small and stress workloads. Trace the pipeline and repair every root cause. Catalog lookups must return the value associated with the requested key, and boundary indices must clamp to the first or last valid record. Preserve public interfaces, pipeline order, configuration values, and arithmetic outside the defects. Build the project; an independent evaluator will verify the complete correctness suite.",
-  "language": "C++17",
-  "category": "general",
-  "build_command": "make all",
-  "test_command": "make test",
-  "profiling_command": "./build/app"
-}
