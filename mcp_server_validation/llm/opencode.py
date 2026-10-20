@@ -335,13 +335,6 @@ class OpenCodeClient:
     # LLM CONFIGURATION
     # ==================================================================
 
-    # These values are intentionally hardcoded for now.
-    #
-    # Later:
-    #     user input
-    #
-    # can replace this configuration.
-
     SERVER_URL = "http://localhost:18000/v1"
 
     API_KEY = "ppkitestapikey"
@@ -359,25 +352,30 @@ class OpenCodeClient:
         model: Optional[str] = None,
         server_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
         mcp_server: Optional[LocalMCPServer] = None,
     ) -> None:
 
-        self.model = (
-            model
-            if model is not None
-            else self.MODEL
+        self.model = model if model is not None else os.environ.get(
+            "BENCHMARK_LLM_MODEL", self.MODEL
         )
 
-        self.server_url = (
-            server_url
-            if server_url is not None
-            else self.SERVER_URL
+        self.server_url = server_url if server_url is not None else os.environ.get(
+            "BENCHMARK_LLM_SERVER_URL", self.SERVER_URL
         )
 
-        self.api_key = (
-            api_key
-            if api_key is not None
-            else self.API_KEY
+        self.api_key = api_key if api_key is not None else os.environ.get(
+            "BENCHMARK_LLM_API_KEY", self.API_KEY
+        )
+
+        self.provider = os.environ.get(
+            "BENCHMARK_LLM_PROVIDER", self.PROVIDER
+        )
+
+        self.reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else os.environ.get("BENCHMARK_REASONING_EFFORT", "medium")
         )
 
         self.mcp_server = (
@@ -483,13 +481,14 @@ class OpenCodeClient:
             },
 
             "provider": {
-                "HPC_Lab": {
+                self.provider: {
                     "npm": "@ai-sdk/openai-compatible",
 
                     "name": "HPC_LAB (GH1)",
 
                     "options": {
                         "baseURL": self.server_url,
+                        "apiKey": self.api_key,
                     },
 
                     "models": {
@@ -803,7 +802,7 @@ class OpenCodeClient:
         # --------------------------------------------------------------
 
         opencode_model = (
-            f"{self.PROVIDER}/{self.model}"
+            f"{self.provider}/{self.model}"
         )
 
         # --------------------------------------------------------------
@@ -818,6 +817,8 @@ class OpenCodeClient:
             "--auto",
             "--model",
             opencode_model,
+            "--variant",
+            self.reasoning_effort,
         ]
 
         if session_id:
@@ -847,6 +848,10 @@ class OpenCodeClient:
 
         print(
             f"Model:         {opencode_model}"
+        )
+
+        print(
+            f"Reasoning:     {self.reasoning_effort}"
         )
 
         print(

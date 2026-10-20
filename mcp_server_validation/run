@@ -4,7 +4,7 @@
 
 # Check if we're in the right directory
 if [ ! -f "benchmark_runner.py" ]; then
-    echo "Error: mcp_benchmark script not found."
+    echo "Error: benchmark_runner.py was not found."
     echo "Please run this script from the mcp_server_validation directory."
     exit 1
 fi
