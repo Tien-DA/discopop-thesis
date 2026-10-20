@@ -391,6 +391,12 @@ class BenchmarkRunner:
                     f"[Benchmark] Return code: "
                     f"{discopop_result.get('returncode')}"
                 )
+                if discopop_result.get("missing_artifacts"):
+                    print()
+                    print(
+                        "[DiscoPoP] Missing profiler artifacts: "
+                        + ", ".join(discopop_result["missing_artifacts"])
+                    )
 
                 return {
                     "mode": mode,
@@ -500,6 +506,7 @@ class BenchmarkRunner:
             evaluation_workspace=mode_output / "evaluation_workspace",
             case=isolated_case,
         )
+        self._print_evaluation_output(evaluation)
 
         self._write_json(
             mode_output / "evaluation.json",
@@ -582,6 +589,7 @@ class BenchmarkRunner:
                 evaluation_workspace=mode_output / "evaluation_workspace",
                 case=isolated_case,
             )
+            self._print_evaluation_output(evaluation)
             self._write_json(
                 mode_output / f"turn_{turn_number}_evaluation.json",
                 evaluation,
@@ -1004,6 +1012,33 @@ unavailable to you. Make the smallest necessary source change, then run
         return "\n".join(lines)
 
     @staticmethod
+    def _print_evaluation_output(evaluation: dict[str, Any]) -> None:
+        """Print hidden-test diagnostics without dumping build or profiler logs."""
+        print(
+            "[Benchmark] Evaluation status: "
+            f"{evaluation.get('status', 'unknown')}"
+        )
+
+        for label, result in (
+            ("Test", evaluation.get("tests")),
+            ("Validator", evaluation.get("validator")),
+        ):
+            if not isinstance(result, dict):
+                continue
+
+            stdout = str(result.get("stdout", "")).strip()
+            stderr = str(result.get("stderr", "")).strip()
+            if not stdout and not stderr:
+                continue
+
+            print()
+            print(f"[Benchmark] {label} output:")
+            if stdout:
+                print(stdout)
+            if stderr:
+                print(stderr)
+
+    @staticmethod
     def _test_statuses(result: Any) -> dict[str, str]:
         if not isinstance(result, dict):
             return {}
@@ -1024,7 +1059,19 @@ unavailable to you. Make the smallest necessary source change, then run
         include_failures: bool,
     ) -> list[str]:
         """Keep compiler/test failure signals, never build command noise or test data."""
-        patterns = ("error:", "fatal:", "undefined reference", "exception")
+        patterns = (
+            "error:",
+            "fatal:",
+            "undefined reference",
+            "exception",
+            "permission denied",
+            "threadsanitizer reported",
+            "data race",
+            "work-sharing construct was removed",
+            "openmp parallelism was removed",
+            "output did not match",
+            "thermodynamic output",
+        )
         if include_failures:
             patterns += ("[fail]", "test(s) failed", "assertion failed")
         matches = [
@@ -1147,6 +1194,7 @@ unavailable to you. Make the smallest necessary source change, then run
             "build_command": case.build_command,
             "test_command": case.test_command,
             "profiling_command": case.profiling_command,
+            "language": case.language,
             "validator": case.validator,
         }
         # Keep this runner compatible with case definitions created before
@@ -1197,6 +1245,7 @@ unavailable to you. Make the smallest necessary source change, then run
                 ],
                 capture_output=True,
                 text=True,
+                errors="replace",
                 timeout=30,
             )
 

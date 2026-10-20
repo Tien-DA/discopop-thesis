@@ -1,0 +1,8 @@
+{
+  "suite": "Mantevo miniMD",
+  "upstream_repository": "https://github.com/Mantevo/miniMD",
+  "commit": "2662065eb2b2264a673bda780a23d296f05a2c87",
+  "source_paths": ["ref"],
+  "packaging_changes": ["The upstream reference implementation is copied unchanged into src.", "A root Makefile and scripts invoke its supported Makefile.default build with one MPI rank."],
+  "license": "LGPL-3.0; copied as LICENSE"
+}

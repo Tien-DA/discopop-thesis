@@ -1,0 +1,10 @@
+{
+  "name": "mantevo_minimd_openmp_optimization",
+  "task": "Optimize the upstream Mantevo miniMD reference application for shared-memory OpenMP execution. Preserve the molecular-dynamics result and the existing MPI plus OpenMP programming model.",
+  "language": "C++17",
+  "parallel_framework": "MPI + OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "OMP_NUM_THREADS=4 mpirun -np 1 ./src/miniMD -i src/in.lj.miniMD -n 100",
+  "validator": "bash tests/measure_parallelism.sh"
+}

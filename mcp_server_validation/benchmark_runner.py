@@ -5,7 +5,6 @@ from pathlib import Path
 from benchmark.loader import BenchmarkLoader
 from benchmark.runner import BenchmarkRunner
 from benchmark.batch_runner import BatchBenchmarkRunner
-from llm.client import LLMClient
 from llm.opencode import OpenCodeClient
 from benchmark.selector import BenchmarkSelector
 
@@ -78,24 +77,6 @@ def main():
     )
 
     # ==============================================================
-    # Test LLM connection
-    #
-    # LLMClient is ONLY used for checking that the
-    # OpenAI-compatible server is reachable.
-    # ==============================================================
-
-    llm = LLMClient()
-
-    if not llm.connect(
-        server_url=server_url,
-        api_key=api_key,
-        model=model,
-    ):
-        raise RuntimeError(
-            "Could not connect to LLM server."
-        )
-
-    # ==============================================================
     # Create OpenCode client
     #
     # OpenCode is the actual coding agent used by the benchmark.
@@ -103,6 +84,8 @@ def main():
 
     opencode = OpenCodeClient(
         model=model,
+        server_url=server_url,
+        api_key=api_key,
     )
 
     # ==============================================================

@@ -96,16 +96,6 @@ class DiscoPoPRunner:
             print("[DiscoPoP] Build failed")
             print(f"[DiscoPoP] Return code: {result[0]}")
 
-            if result[2]:
-                print()
-                print("[DiscoPoP] STDOUT:")
-                print(result[2])
-
-            if result[3]:
-                print()
-                print("[DiscoPoP] STDERR:")
-                print(result[3])
-
             return failure
 
         # ------------------------------------------------------------
@@ -136,16 +126,6 @@ class DiscoPoPRunner:
             print("[DiscoPoP] Execute returned non-zero")
             print(f"[DiscoPoP] Return code: {result[0]}")
 
-            if result[2]:
-                print()
-                print("[DiscoPoP] STDOUT:")
-                print(result[2])
-
-            if result[3]:
-                print()
-                print("[DiscoPoP] STDERR:")
-                print(result[3])
-
             print()
             print("[DiscoPoP] Continuing because execution output may still be valid.")
 
@@ -169,6 +149,9 @@ class DiscoPoPRunner:
                 "success": False,
                 "analysis_available": False,
                 "stage": "profiling",
+                "returncode": result[0],
+                "stdout": result[2],
+                "stderr": result[3],
                 "missing_artifacts": missing,
             }
 
@@ -259,6 +242,10 @@ class DiscoPoPRunner:
         default = configs / "default"
 
         default.mkdir(parents=True,exist_ok=True)
+        (project / ".discopop" / "profiler").mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
         seq_settings = configs / "seq_settings.json"
 
@@ -282,6 +269,7 @@ class DiscoPoPRunner:
         self._write_compile_script(
             configs / "compile.sh",
             case.build_command,
+            case.language,
         )
 
         if not case.profiling_command:
@@ -299,7 +287,14 @@ class DiscoPoPRunner:
     def _write_compile_script(
         path: Path,
         command: str,
+        language: str,
     ) -> None:
+
+        instrumenting_compiler = (
+            "discopop_cxx"
+            if "++" in language
+            else "discopop_cc"
+        )
 
         path.write_text(
             f"""#!/bin/bash
@@ -307,7 +302,12 @@ set -e
 
 cd "$DP_PROJECT_ROOT_DIR"
 
-{command}
+# Benchmark task Makefiles use COMPILER rather than CC/CXX.  Set all three
+# only for this instrumented build, so the executable emits DiscoPoP profiler
+# data while a normal `make all` continues to use its plain compiler.
+# OpenMPI and MPICH use these variables to replace their underlying compiler
+# while retaining the MPI include and link flags supplied by mpicxx/mpicc.
+COMPILER={instrumenting_compiler} CC={instrumenting_compiler} CXX={instrumenting_compiler} OMPI_CC=discopop_cc OMPI_CXX=discopop_cxx MPICH_CC=discopop_cc MPICH_CXX=discopop_cxx {command}
 """,
             encoding="utf-8",
         )

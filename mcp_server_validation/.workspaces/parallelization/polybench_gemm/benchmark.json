@@ -1,0 +1,10 @@
+{
+  "name": "polybench_gemm_openmp",
+  "task": "Parallelize the compute kernel of this upstream PolyBench/C GEMM program with OpenMP. Keep the mathematical result exactly unchanged. Do not remove work, replace the kernel with a library call, or hard-code output. Build with the supplied Makefile and keep a real OpenMP parallel work-sharing construct in the computational kernel.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "OMP_NUM_THREADS=4 ./build/gemm",
+  "validator": "bash tests/measure_parallelism.sh"
+}

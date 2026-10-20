@@ -471,6 +471,17 @@ class OpenCodeClient:
         config = {
             "$schema": "https://opencode.ai/config.json",
 
+            # Keep the agent autonomous, while preventing a long sequence of
+            # shell output from being sent back to the model on every later
+            # turn.  This is especially important with a self-hosted model:
+            # repeatedly prefilling a 100k+ token transcript dominates the
+            # latency even when the actual repair is small.
+            "compaction": {
+                "auto": True,
+                "prune": True,
+                "reserved": 20000,
+            },
+
             "provider": {
                 "HPC_Lab": {
                     "npm": "@ai-sdk/openai-compatible",
@@ -871,6 +882,7 @@ class OpenCodeClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                errors="replace",
                 bufsize=1,
             )
 

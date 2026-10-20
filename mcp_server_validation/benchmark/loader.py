@@ -108,6 +108,7 @@ class BenchmarkLoader:
             build_command=data["build_command"],
             test_command=data["test_command"],
             profiling_command=data.get("profiling_command"),
+            language=str(data.get("language", "")),
             validator=data.get("validator"),
             profiling_timeout_seconds=data.get("profiling_timeout_seconds"),
         )

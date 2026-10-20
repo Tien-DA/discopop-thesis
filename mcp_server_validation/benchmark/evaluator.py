@@ -81,6 +81,7 @@ class BenchmarkEvaluator:
             executable="/bin/bash",
             capture_output=True,
             text=True,
+            errors="replace",
         )
 
     @staticmethod

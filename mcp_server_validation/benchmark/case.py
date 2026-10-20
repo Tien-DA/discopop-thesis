@@ -13,5 +13,6 @@ class BenchmarkCase:
     build_command: str
     test_command: str
     profiling_command: str | None
+    language: str = ""
     validator: Optional[str] = None
     profiling_timeout_seconds: Optional[int] = None
