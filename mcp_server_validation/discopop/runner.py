@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import subprocess
@@ -76,7 +77,7 @@ class DiscoPoPRunner:
         )
         print("=" * 80)
 
-        result = execute_configuration(
+        build_result = execute_configuration(
             arguments=arguments,
             project_copy_root_path=str(project),
             config_path=str(configs_dir),
@@ -86,15 +87,16 @@ class DiscoPoPRunner:
             timeout=float(self.timeout),
         )
 
-        if result[0] != 0:
+        if build_result[0] != 0:
             failure = self._failure(
                 "compile",
-                result,
+                build_result,
             )
 
             print()
             print("[DiscoPoP] Build failed")
-            print(f"[DiscoPoP] Return code: {result[0]}")
+            print(f"[DiscoPoP] Return code: {build_result[0]}")
+            self._print_process_output(build_result)
 
             return failure
 
@@ -150,6 +152,9 @@ class DiscoPoPRunner:
                 "analysis_available": False,
                 "stage": "profiling",
                 "returncode": result[0],
+                "build_returncode": build_result[0],
+                "build_stdout": build_result[2],
+                "build_stderr": build_result[3],
                 "stdout": result[2],
                 "stderr": result[3],
                 "missing_artifacts": missing,
@@ -266,6 +271,17 @@ class DiscoPoPRunner:
             overwrite=False,
         )
 
+        dp_settings = configs / "dp_settings.json"
+        settings = json.loads(
+            dp_settings.read_text(encoding="utf-8")
+        )
+        settings.pop("CFLAGS", None)
+        settings.pop("CXXFLAGS", None)
+        dp_settings.write_text(
+            json.dumps(settings, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
         self._write_compile_script(
             configs / "compile.sh",
             case.build_command,
@@ -302,12 +318,25 @@ set -e
 
 cd "$DP_PROJECT_ROOT_DIR"
 
+# Keep the GCC toolchain override separate and attach it to the compiler
+# command. This avoids overriding a benchmark Makefile's own CFLAGS/CXXFLAGS
+# (such as -fopenmp) while allowing Clang to find libstdc++.so.
+compiler_args=""
+if [ -n "${{DISCOPOP_GCC_INSTALL_DIR:-}}" ]; then
+    if [ ! -f "$DISCOPOP_GCC_INSTALL_DIR/libstdc++.so" ]; then
+        echo "DISCOPOP_GCC_INSTALL_DIR does not contain libstdc++.so: $DISCOPOP_GCC_INSTALL_DIR" >&2
+        exit 2
+    fi
+
+    compiler_args="--gcc-install-dir=$DISCOPOP_GCC_INSTALL_DIR"
+fi
+
 # Benchmark task Makefiles use COMPILER rather than CC/CXX.  Set all three
 # only for this instrumented build, so the executable emits DiscoPoP profiler
 # data while a normal `make all` continues to use its plain compiler.
 # OpenMPI and MPICH use these variables to replace their underlying compiler
 # while retaining the MPI include and link flags supplied by mpicxx/mpicc.
-COMPILER={instrumenting_compiler} CC={instrumenting_compiler} CXX={instrumenting_compiler} OMPI_CC=discopop_cc OMPI_CXX=discopop_cxx MPICH_CC=discopop_cc MPICH_CXX=discopop_cxx {command}
+COMPILER="{instrumenting_compiler} $compiler_args" CC="{instrumenting_compiler} $compiler_args" CXX="{instrumenting_compiler} $compiler_args" OMPI_CC="discopop_cc $compiler_args" OMPI_CXX="discopop_cxx $compiler_args" MPICH_CC="discopop_cc $compiler_args" MPICH_CXX="discopop_cxx $compiler_args" {command}
 """,
             encoding="utf-8",
         )
@@ -366,6 +395,25 @@ cd "$DP_PROJECT_ROOT_DIR"
     # ================================================================
     # HELPERS
     # ================================================================
+
+    @staticmethod
+    def _print_process_output(
+        result: tuple[int, float, str, str],
+    ) -> None:
+        """Print captured script output when a benchmark stage fails."""
+
+        stdout = result[2].strip()
+        stderr = result[3].strip()
+
+        if stdout:
+            print()
+            print("[DiscoPoP] STDOUT:")
+            print(stdout)
+
+        if stderr:
+            print()
+            print("[DiscoPoP] STDERR:")
+            print(stderr)
 
     @staticmethod
     def _missing(

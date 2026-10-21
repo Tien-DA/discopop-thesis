@@ -38,6 +38,16 @@ The system compiler used by the DataRaceBench task is `gcc`; do not set `CC` to
 Clang for the DRB009 evaluator. If your distribution uses versioned compiler
 names, set `CC` to a GNU GCC executable, for example `export CC=gcc-13`.
 
+If a DiscoPoP build fails with `cannot find -lstdc++` even though `clang-22`
+is installed, point the instrumenting compiler at a complete GCC installation.
+The benchmark uses `DISCOPOP_GCC_INSTALL_DIR` rather than `CFLAGS`, so each
+task retains the compilation flags defined by its own Makefile:
+
+```bash
+export DISCOPOP_GCC_INSTALL_DIR=/usr/lib/gcc/x86_64-linux-gnu/15
+test -f "$DISCOPOP_GCC_INSTALL_DIR/libstdc++.so"
+```
+
 ## Install from a fresh clone
 
 Run these commands at repository root. The requirements file installs the local
