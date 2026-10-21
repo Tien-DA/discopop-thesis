@@ -1,5 +1,8 @@
+import json
+import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from benchmark.case import BenchmarkCase
 
@@ -10,6 +13,7 @@ class BenchmarkEvaluator:
         self,
         case: BenchmarkCase,
         workspace: Path,
+        reference_workspace: Path | None = None,
     ) -> dict:
 
         build = self._run(
@@ -56,6 +60,20 @@ class BenchmarkEvaluator:
                     ),
                 }
 
+        performance = None
+
+        if case.performance_command:
+            performance_result = self._run(
+                case.performance_command,
+                workspace,
+                environment={
+                    "BENCHMARK_REFERENCE_WORKSPACE": str(reference_workspace)
+                    if reference_workspace
+                    else "",
+                },
+            )
+            performance = self._performance_result(performance_result)
+
         return {
             "passed": True,
             "status": "passed",
@@ -66,13 +84,21 @@ class BenchmarkEvaluator:
                 if validator_result
                 else None
             ),
+            # Performance is observational: a failed or malformed measurement
+            # never changes a correctness PASS into a FAIL.
+            "performance": performance,
         }
 
     @staticmethod
     def _run(
         command: str,
         workspace: Path,
+        environment: dict[str, str] | None = None,
     ):
+
+        env = os.environ.copy()
+        if environment:
+            env.update(environment)
 
         return subprocess.run(
             command,
@@ -82,6 +108,7 @@ class BenchmarkEvaluator:
             capture_output=True,
             text=True,
             errors="replace",
+            env=env,
         )
 
     @staticmethod
@@ -91,4 +118,51 @@ class BenchmarkEvaluator:
             "returncode": result.returncode,
             "stdout": result.stdout,
             "stderr": result.stderr,
+        }
+
+    @classmethod
+    def _performance_result(cls, result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
+        """Read a task-owned, versioned performance report without grading it.
+
+        A task's ``performance_command`` must write one JSON object to stdout.
+        The object belongs to the task because only the task knows its trusted
+        reference implementation, workload, and meaningful comparisons.  The
+        benchmark owns transport, storage, and display of that report.
+        """
+        command_result = cls._result(result)
+
+        if result.returncode != 0:
+            return {
+                "available": False,
+                "error": "performance command failed",
+                "command": command_result,
+            }
+
+        try:
+            report = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            return {
+                "available": False,
+                "error": f"performance command did not emit valid JSON: {exc.msg}",
+                "command": command_result,
+            }
+
+        if not isinstance(report, dict):
+            return {
+                "available": False,
+                "error": "performance command must emit a JSON object",
+                "command": command_result,
+            }
+
+        if report.get("schema_version") != 1:
+            return {
+                "available": False,
+                "error": "performance report must declare schema_version 1",
+                "command": command_result,
+            }
+
+        return {
+            "available": True,
+            "report": report,
+            "command": command_result,
         }

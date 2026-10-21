@@ -15,4 +15,5 @@ class BenchmarkCase:
     profiling_command: str | None
     language: str = ""
     validator: Optional[str] = None
+    performance_command: Optional[str] = None
     profiling_timeout_seconds: Optional[int] = None

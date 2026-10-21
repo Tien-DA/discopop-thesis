@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 import time
@@ -186,6 +185,7 @@ class BenchmarkRunner:
             f"{'Total token':>15}"
             f"{'Accuracy':>12}"
             f"{'Latency':>12}"
+            f"{'Performance':>16}"
         )
 
         for mode in self.MODES:
@@ -262,6 +262,8 @@ class BenchmarkRunner:
                     f"{latency:.3f}s"
                 )
 
+            performance_text = self._performance_status(result)
+
             # ----------------------------------------------------------
             # Print row
             # ----------------------------------------------------------
@@ -279,6 +281,7 @@ class BenchmarkRunner:
                 f"{total_tokens:>15,}"
                 f"{accuracy:>12}"
                 f"{latency_text:>12}"
+                f"{performance_text:>16}"
             )
 
             if mode == "mcp":
@@ -298,6 +301,7 @@ class BenchmarkRunner:
                         f"{warm_tokens.get('total', 0):>15,}"
                         f"{accuracy:>12}"
                         f"{warm_latency_text:>12}"
+                        f"{'':>16}"
                     )
 
         print("=" * 100)
@@ -359,7 +363,8 @@ class BenchmarkRunner:
         #     Run DiscoPoP and expose generated analysis to OpenCode.
         #
         # MCP:
-        #     Run DiscoPoP because the MCP server needs the analysis.
+        #     Do not prepare or run DiscoPoP in advance. The agent may use the
+        #     enabled MCP server if it judges that its analysis is useful.
         # --------------------------------------------------------------
 
         discopop_result = None
@@ -411,8 +416,7 @@ class BenchmarkRunner:
 
             print()
             print(
-                "[Benchmark] DiscoPoP will be initialized "
-                "and executed through MCP by OpenCode."
+                "[Benchmark] DiscoPoP MCP tools are available to OpenCode."
             )
         # --------------------------------------------------------------
         # 3. Build prompt
@@ -545,11 +549,6 @@ class BenchmarkRunner:
             remediation_prompt = self._build_remediation_prompt(
                 case=isolated_case,
                 evaluation=evaluation,
-                previous_evaluation=(
-                    attempts[-1].get("evaluation")
-                    if len(attempts) > 1
-                    else None
-                ),
                 turn_number=turn_number,
             )
             remediation_prompt_file = mode_output / f"turn_{turn_number}_prompt.txt"
@@ -782,6 +781,8 @@ class BenchmarkRunner:
 
             "evaluation": evaluation,
 
+            "performance": evaluation.get("performance"),
+
             "discopop": discopop_result,
         }
 
@@ -814,6 +815,7 @@ class BenchmarkRunner:
             f"[Benchmark] Latency: "
             f"{result['latency_seconds']:.3f}s"
         )
+        self._print_performance_summary(mode, result)
         return result
 
     @staticmethod
@@ -914,17 +916,81 @@ class BenchmarkRunner:
         return {"used": bool(tool_calls), "tool_calls": tool_calls, "tools": dict(sorted(tools.items()))}
 
     @staticmethod
+    def _performance_status(result: dict[str, Any]) -> str:
+        performance = result.get("performance")
+        if not isinstance(performance, dict):
+            return "N/A"
+        if not performance.get("available", False):
+            return "unavailable"
+        report = performance.get("report")
+        if not isinstance(report, dict):
+            return "unavailable"
+        comparisons = report.get("comparisons")
+        if isinstance(comparisons, list):
+            return f"{len(comparisons)} comparison(s)"
+        return "available"
+
+    @classmethod
+    def _print_performance_summary(
+        cls,
+        mode: str,
+        result: dict[str, Any],
+    ) -> None:
+        """Print task-defined measurements without interpreting them as a score."""
+        performance = result.get("performance")
+        if not isinstance(performance, dict):
+            return
+
+        print(f"[Benchmark] Performance ({mode}): {cls._performance_status(result)}")
+        if not performance.get("available", False):
+            error = performance.get("error")
+            if error:
+                print(f"  Measurement error: {error}")
+            return
+
+        report = performance.get("report")
+        if not isinstance(report, dict):
+            return
+
+        metric = report.get("metric")
+        unit = report.get("unit")
+        if metric or unit:
+            print(f"  Metric: {metric or 'unspecified'} ({unit or 'unspecified unit'})")
+
+        measurements = report.get("measurements")
+        if isinstance(measurements, list):
+            for measurement in measurements:
+                if not isinstance(measurement, dict):
+                    continue
+                label = measurement.get("label", "unnamed measurement")
+                median = measurement.get("median")
+                workers = measurement.get("workers")
+                samples = measurement.get("samples")
+                detail = f"median={median}"
+                if workers is not None:
+                    detail += f", workers={workers}"
+                if isinstance(samples, list):
+                    detail += f", samples={samples}"
+                print(f"  Measurement {label}: {detail}")
+
+        comparisons = report.get("comparisons")
+        if isinstance(comparisons, list):
+            for comparison in comparisons:
+                if not isinstance(comparison, dict):
+                    continue
+                label = comparison.get("label", "unnamed comparison")
+                ratio = comparison.get("ratio")
+                direction = comparison.get("direction", "unspecified direction")
+                print(f"  Comparison {label}: ratio={ratio} ({direction})")
+
+    @staticmethod
     def _build_remediation_prompt(
         case: BenchmarkCase,
         evaluation: dict[str, Any],
-        previous_evaluation: dict[str, Any] | None,
         turn_number: int,
     ) -> str:
-        """Give the agent concise, non-repetitive evaluator diagnostics."""
-        diagnostics = BenchmarkRunner._summarize_evaluation(
-            evaluation=evaluation,
-            previous_evaluation=previous_evaluation,
-        )
+        """Give the agent the evaluator's complete captured output."""
+        diagnostics = BenchmarkRunner._full_evaluation_output(evaluation)
         return f"""You are repairing your previous attempt in {case.workspace}.
 
 Original task: {case.task}
@@ -943,73 +1009,26 @@ unavailable to you. Make the smallest necessary source change, then run
 """
 
     @staticmethod
-    def _summarize_evaluation(
-        evaluation: dict[str, Any],
-        previous_evaluation: dict[str, Any] | None,
-    ) -> str:
-        """Return actionable test/build status without exposing hidden tests."""
-        status = evaluation.get("status", "unknown")
-        lines = [f"Evaluator status: {status}."]
-
-        build = evaluation.get("build")
-        if isinstance(build, dict):
-            if build.get("returncode") == 0:
-                lines.append("Build: PASS")
-            else:
-                lines.append(f"Build: FAIL (exit {build.get('returncode')})")
-                lines.extend(
-                    BenchmarkRunner._diagnostic_lines(
-                        build, limit=24, include_failures=False
-                    )
-                )
-
-        tests = evaluation.get("tests")
-        test_statuses = BenchmarkRunner._test_statuses(tests)
-        if isinstance(tests, dict):
-            if test_statuses:
-                lines.append("Tests:")
-                lines.extend(
-                    f"  {name}: {result}"
-                    for name, result in sorted(test_statuses.items())
-                )
-            elif tests.get("returncode") == 0:
-                lines.append("Tests: PASS")
-            else:
-                lines.append(f"Tests: FAIL (exit {tests.get('returncode')})")
-            lines.extend(
-                BenchmarkRunner._diagnostic_lines(
-                    tests, limit=12, include_failures=True
-                )
-            )
-
-        previous_statuses = BenchmarkRunner._test_statuses(
-            previous_evaluation.get("tests")
-            if isinstance(previous_evaluation, dict)
-            else None
-        )
-        if previous_evaluation:
-            changes = [
-                f"  {name}: {previous_statuses.get(name, 'not reported')} -> {result}"
-                for name, result in sorted(test_statuses.items())
-                if previous_statuses.get(name) != result
-            ]
-            if changes:
-                lines.append("Changes since the preceding evaluation:")
-                lines.extend(changes)
-            elif status == previous_evaluation.get("status"):
-                lines.append("Changes since the preceding evaluation: no test-status change.")
-
-        passed = {name for name, result in test_statuses.items() if result == "PASS"}
-        failed = {name for name, result in test_statuses.items() if result == "FAIL"}
-        if passed and failed and all("sequential" in name for name in passed) and all(
-            "parallel" in name for name in failed
+    def _full_evaluation_output(evaluation: dict[str, Any]) -> str:
+        """Return unfiltered stdout and stderr from every evaluator command."""
+        sections: list[str] = []
+        for label, result in (
+            ("Build", evaluation.get("build")),
+            ("Test", evaluation.get("tests")),
+            ("Validator", evaluation.get("validator")),
         ):
-            lines.append(
-                "Diagnostic focus: sequential workloads pass while parallel workloads fail; "
-                "inspect code paths that share state across OpenMP threads."
+            if not isinstance(result, dict):
+                continue
+            sections.extend(
+                (
+                    f"{label} stdout:",
+                    str(result.get("stdout", "")),
+                    f"{label} stderr:",
+                    str(result.get("stderr", "")),
+                )
             )
 
-        return "\n".join(lines)
+        return "\n".join(sections) if sections else "The evaluator produced no command output."
 
     @staticmethod
     def _print_evaluation_output(evaluation: dict[str, Any]) -> None:
@@ -1037,50 +1056,6 @@ unavailable to you. Make the smallest necessary source change, then run
                 print(stdout)
             if stderr:
                 print(stderr)
-
-    @staticmethod
-    def _test_statuses(result: Any) -> dict[str, str]:
-        if not isinstance(result, dict):
-            return {}
-        statuses: dict[str, str] = {}
-        output = "\n".join(
-            str(result.get(stream, "")) for stream in ("stdout", "stderr")
-        )
-        for line in output.splitlines():
-            match = re.match(r"\[(PASS|FAIL)\]\s+(.+?)\s*$", line.strip())
-            if match:
-                statuses[match.group(2)] = match.group(1)
-        return statuses
-
-    @staticmethod
-    def _diagnostic_lines(
-        result: dict[str, Any],
-        limit: int,
-        include_failures: bool,
-    ) -> list[str]:
-        """Keep compiler/test failure signals, never build command noise or test data."""
-        patterns = (
-            "error:",
-            "fatal:",
-            "undefined reference",
-            "exception",
-            "permission denied",
-            "threadsanitizer reported",
-            "data race",
-            "work-sharing construct was removed",
-            "openmp parallelism was removed",
-            "output did not match",
-            "thermodynamic output",
-        )
-        if include_failures:
-            patterns += ("[fail]", "test(s) failed", "assertion failed")
-        matches = [
-            line.strip()
-            for stream in ("stderr", "stdout")
-            for line in str(result.get(stream, "")).splitlines()
-            if any(pattern in line.lower() for pattern in patterns)
-        ]
-        return [f"  {line}" for line in matches[-limit:]]
 
     # ==================================================================
     # PROMPT
@@ -1173,10 +1148,24 @@ unavailable to you. Make the smallest necessary source change, then run
         if source_tests.is_dir():
             shutil.copytree(source_tests, evaluation_workspace / "tests")
 
+        reference_workspace = None
+        if case.performance_command:
+            reference_workspace = evaluation_workspace.parent / "reference_workspace"
+            if reference_workspace.exists():
+                shutil.rmtree(reference_workspace)
+            shutil.copytree(
+                source,
+                reference_workspace,
+                ignore=shutil.ignore_patterns(
+                    "build", "tests", ".discopop", ".git", "__pycache__", "*.pyc"
+                ),
+            )
+
         evaluation_case = self._case_with_workspace(case, evaluation_workspace)
         return self.evaluator.evaluate(
             case=evaluation_case,
             workspace=evaluation_workspace,
+            reference_workspace=reference_workspace,
         )
 
     @staticmethod
@@ -1196,6 +1185,7 @@ unavailable to you. Make the smallest necessary source change, then run
             "profiling_command": case.profiling_command,
             "language": case.language,
             "validator": case.validator,
+            "performance_command": case.performance_command,
         }
         # Keep this runner compatible with case definitions created before
         # profiling_timeout_seconds was introduced.

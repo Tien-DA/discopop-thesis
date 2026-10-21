@@ -7,7 +7,7 @@ task in three conditions:
 | --- | --- |
 | `direct` | Source tree and normal shell tools. |
 | `full_discopop` | Source tree plus DiscoPoP analysis generated before the agent starts. |
-| `mcp` | Source tree plus the DiscoPoP MCP server; the agent must obtain diagnostic evidence through MCP. |
+| `mcp` | Source tree plus the enabled DiscoPoP MCP server; the agent may use it when useful. |
 
 The runner keeps the agent workspace and evaluator workspace separate. Files in a
 task's lowercase `tests/` directory are copied only into the evaluator workspace,
@@ -169,6 +169,57 @@ runs/<timestamp>_openmp_correctness_repair_DRB009-lastprivatemissing-orig-yes/
 Read `result.json` for the three-mode summary. `evaluation.json` contains the
 compiler/test outcome, `patch.diff` is the source change proposed by the agent,
 and `events.jsonl` records OpenCode events used to count tokens and MCP calls.
+
+## Performance measurements
+
+Correctness and performance are reported separately. A task may declare an
+optional `performance_command` in `benchmark.json`. The command runs only after
+the candidate passes build, tests, and any `validator`; its exit status never
+changes the task's correctness result. This lets a benchmark report a regression
+or an unavailable measurement without treating it as a failed repair.
+
+The command must write one JSON object to standard output with
+`"schema_version": 1`. The runner stores the object in both
+`evaluation.json` and the mode's `result.json`, and prints its measurements and
+comparisons. Task scripts own the workload, trusted reference implementation,
+and any ratios because those choices are task-specific. The shared runner only
+transports and displays the report, so future task families can use the same
+interface.
+
+The following shape is recommended:
+
+```json
+{
+  "schema_version": 1,
+  "metric": "wall_time_seconds",
+  "unit": "seconds",
+  "repetitions": 5,
+  "measurements": [
+    {"label": "reference", "workers": 4, "samples": [1.02, 1.00, 1.01], "median": 1.01},
+    {"label": "candidate", "workers": 4, "samples": [0.82, 0.81, 0.83], "median": 0.82}
+  ],
+  "comparisons": [
+    {
+      "label": "candidate_vs_reference_4_workers",
+      "numerator": "reference_4_workers",
+      "denominator": "candidate_4_workers",
+      "ratio": 1.23,
+      "direction": "higher_is_faster"
+    }
+  ]
+}
+```
+
+During evaluator execution, `BENCHMARK_REFERENCE_WORKSPACE` points to a clean
+copy of the original task source. It is never copied into the agent workspace.
+A task may use this workspace as an upstream baseline, or keep a task-specific
+correct reference under its hidden `tests/` directory. Performance scripts must
+write only the JSON report to stdout; diagnostic output belongs on stderr.
+
+The included GEMM and miniMD tasks report raw samples, medians, candidate versus
+reference ratios, and one-to-four-worker scaling. These are observations only;
+the benchmark intentionally does not yet turn them into a performance score or
+a pass/fail threshold.
 
 If a mode fails before the agent runs, check these prerequisites in this order:
 

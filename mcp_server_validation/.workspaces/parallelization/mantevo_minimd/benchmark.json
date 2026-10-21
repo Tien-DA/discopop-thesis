@@ -6,5 +6,5 @@
   "build_command": "make all",
   "test_command": "make test",
   "profiling_command": "OMP_NUM_THREADS=4 mpirun -np 1 ./src/miniMD -i src/in.lj.miniMD -n 100",
-  "validator": "bash tests/measure_parallelism.sh"
+  "performance_command": "bash tests/measure_parallelism.sh"
 }

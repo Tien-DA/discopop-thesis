@@ -6,5 +6,5 @@
   "build_command": "make all",
   "test_command": "make test",
   "profiling_command": "OMP_NUM_THREADS=4 ./build/gemm",
-  "validator": "bash tests/measure_parallelism.sh"
+  "performance_command": "bash tests/measure_parallelism.sh"
 }

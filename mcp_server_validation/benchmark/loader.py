@@ -110,5 +110,6 @@ class BenchmarkLoader:
             profiling_command=data.get("profiling_command"),
             language=str(data.get("language", "")),
             validator=data.get("validator"),
+            performance_command=data.get("performance_command"),
             profiling_timeout_seconds=data.get("profiling_timeout_seconds"),
         )

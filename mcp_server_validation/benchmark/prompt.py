@@ -59,8 +59,7 @@ requirement and use a small self-authored test to validate your repair.
         return common + """
 BENCHMARK CONDITION:
 You are working in the DIRECT condition.
-No DiscoPoP analysis or DiscoPoP MCP server is available.
-Use the repository itself and the normal development tools to understand and solve the task.
+No DiscoPoP analysis or DiscoPoP MCP server is available in this workspace.
 """
 
     # ==================================================================
@@ -77,10 +76,10 @@ Use the repository itself and the normal development tools to understand and sol
 
         return common + f"""
 BENCHMARK CONDITION:
-You are working in the FULL_DISCOPOP condition.           
-In addition to the repository source code, the complete DiscoPoP analysis is available in:{discopop_path}
-Do not use only repository source code to solve the problem. You have to use the DiscoPoP analysis
-The DiscoPoP MCP server is not available in this condition.
+You are working in the FULL_DISCOPOP condition.
+In addition to the repository source code, DiscoPoP analysis is available in: {discopop_path}
+The DiscoPoP MCP server is not available in this workspace. Use the available
+analysis when it is useful to understand, repair, or validate the task.
 """
 
     # ==================================================================
@@ -96,22 +95,7 @@ The DiscoPoP MCP server is not available in this condition.
         return common + """
 BENCHMARK CONDITION:
 You are working in the MCP condition.
-DiscoPoP is available through the DiscoPoP MCP server.
-
-MANDATORY MCP USAGE:
-Use DiscoPoP substantively, not as a ceremonial single call. Setup,
-instrumentation, profiling, and data collection alone do not satisfy this
-requirement for a correctness task: they prepare evidence but do not identify
-the repair. Before editing, obtain a compact MCP diagnostic that establishes
-worker-count-dependent behavior or identifies a concrete shared-state cause or
-repair plan for the affected region. After editing, obtain MCP validation that
-compares repeated multi-worker behavior with the one-worker baseline.
-
-For a performance task, establish correctness before measuring scaling or
-tuning. Decide autonomously which tools provide each required decision, in what
-order, and with which arguments. Use collection only when the chosen diagnostic
-needs dynamic evidence. Use only relevant MCP evidence together with your own
-source-code inspection to identify and fix the problem. Then build the project.
-The tests are hidden and will be run by an independent evaluator.
-Do not assume that DiscoPoP analysis already exists, and do not inspect DiscoPoP analysis files directly; access it through the MCP tools.
+The DiscoPoP MCP server is enabled. Use its tools when they are useful to
+understand, repair, or validate the task. Decide independently whether to use
+them, which tools to use, and how much analysis the task needs.
 """
