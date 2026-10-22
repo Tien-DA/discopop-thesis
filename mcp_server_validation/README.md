@@ -14,10 +14,15 @@ task's lowercase `tests/` directory are copied only into the evaluator workspace
 so an agent cannot modify the oracle. Each mode writes its prompt, OpenCode event
 stream, evaluation result, patch, and summary under `runs/`.
 
+For the fourteen DataRaceBench repair tasks, see
+[official reference provenance](DATARACEBENCH_REFERENCES.md) for the verified
+race-free upstream programs. The OmpSCR dependency-loop reference is documented
+in [OmpSCR reference provenance](OMPSCR_REFERENCES.md).
+
 ## Supported environment
 
 Run a complete benchmark on **Linux x86_64** (native Linux, a VM, or WSL2). The
-included DRB009 oracle compiles with GCC, OpenMP, and GCC ThreadSanitizer. macOS's
+included DataRaceBench oracles compile with GCC, OpenMP, and GCC ThreadSanitizer. macOS's
 `/usr/bin/gcc` is Apple Clang and does not support this command, so it is useful
 for inspection but is not a supported execution environment for this benchmark.
 
@@ -34,8 +39,8 @@ sudo apt install -y \
   llvm-19-dev clang-19 libomp-19-dev libboost-all-dev
 ```
 
-The system compiler used by the DataRaceBench task is `gcc`; do not set `CC` to
-Clang for the DRB009 evaluator. If your distribution uses versioned compiler
+The system compiler used by the DataRaceBench tasks is `gcc`; do not set `CC` to
+Clang for their evaluators. If your distribution uses versioned compiler
 names, set `CC` to a GNU GCC executable, for example `export CC=gcc-13`.
 
 If a DiscoPoP build fails with `cannot find -lstdc++` even though `clang-22`
@@ -101,21 +106,24 @@ export BENCHMARK_LLM_PROVIDER="HPC_Lab"
 OpenCode configuration never gets committed: it is written only inside a run's
 isolated workspace.
 
-## Run DRB009
+## Run DRB095
 
-DRB009 is included in the clone at:
+DRB095 is included in the clone at:
 
-`mcp_server_validation/.workspaces/openmp_correctness_repair/DRB009-lastprivatemissing-orig-yes/`
+`mcp_server_validation/.workspaces/openmp_correctness_repair/DRB095-doall2-taskloop-orig-yes/`
 
 From this directory, list available task names and run only this case:
 
 ```bash
 cd mcp_server_validation
 ../.venv/bin/python benchmark_runner.py --list
-../.venv/bin/python benchmark_runner.py --case drb009_lastprivate_missing
+../.venv/bin/python benchmark_runner.py --case DRB095-doall2-taskloop-orig-yes
 ```
 
-`./run --case drb009_lastprivate_missing` is equivalent when the intended virtual
+`--case` accepts the directory name printed by `--list`; the descriptive ID
+in `benchmark.json` is metadata.
+
+`./run --case DRB095-doall2-taskloop-orig-yes` is equivalent when the intended virtual
 environment is activated. Without `--case`, the runner opens an interactive task
 selector; choose `all` only after individual tasks work in your environment.
 
@@ -134,14 +142,14 @@ own terminology. The default is `medium`; set
 `BENCHMARK_REASONING_EFFORT` to change that default for a shell session.
 
 ```bash
-# Faster, lower-cost DRB009 run
-./run --case drb009_lastprivate_missing --reasoning-effort low
+# Faster, lower-cost DRB095 run
+./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low
 
 # Disable thinking traces for the fastest mode supported by the model
-./run --case drb009_lastprivate_missing --variant off
+./run --case DRB095-doall2-taskloop-orig-yes --variant off
 
 # Maximum reasoning depth for a difficult task
-./run --case drb009_lastprivate_missing --reasoning-effort xhigh
+./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort xhigh
 ```
 
 Accepted values are `xhigh`, `high`, `medium`, `low`, and `off`. Higher effort
@@ -150,8 +158,9 @@ value is printed at the start of a benchmark and recorded in the OpenCode comman
 shown in the mode log.
 
 The source starts with the known race. A successful agent repair must keep the
-OpenMP parallel loop, build with `make all`, and pass the evaluator's
-ThreadSanitizer and output checks with two and four worker threads. Do not expect
+OpenMP taskloop, build with `make all`, and pass the evaluator's
+ThreadSanitizer and official-reference output checks with one, two, and four
+worker threads. Do not expect
 the unmodified source to pass `make test`.
 
 ## Results and troubleshooting
@@ -159,7 +168,7 @@ the unmodified source to pass `make test`.
 One invocation produces:
 
 ```text
-runs/<timestamp>_openmp_correctness_repair_DRB009-lastprivatemissing-orig-yes/
+runs/<timestamp>_openmp_correctness_repair_DRB095-doall2-taskloop-orig-yes/
   result.json
   direct/{workspace,evaluation_workspace,evaluation.json,events.jsonl,patch.diff,result.json}
   full_discopop/{...}
@@ -216,10 +225,37 @@ A task may use this workspace as an upstream baseline, or keep a task-specific
 correct reference under its hidden `tests/` directory. Performance scripts must
 write only the JSON report to stdout; diagnostic output belongs on stderr.
 
-The included GEMM and miniMD tasks report raw samples, medians, candidate versus
-reference ratios, and one-to-four-worker scaling. These are observations only;
-the benchmark intentionally does not yet turn them into a performance score or
-a pass/fail threshold.
+All 15 race-repair tasks now use a hidden `tests/performance.json` specification
+and the shared performance test. It runs only after the correctness oracle
+passes. The test builds the candidate and official race-free reference with
+the same GCC `-O2 -fopenmp` flags, without ThreadSanitizer. It warms up both
+programs, calibrates a batch to about 150 ms, and runs nine paired rounds in
+alternating order. Each pair uses the same input and OpenMP team size. The
+reported ratio is the median of the nine reference-time/candidate-time
+ratios; a larger value means a faster candidate. The report includes raw
+samples and a paired-bootstrap 95% interval.
+
+The performance point is **1** when the interval's lower bound is at least
+`0.90`, **0** when its upper bound is below `0.90`, and **inconclusive**
+otherwise. The point is also stored as `performance_point` in each mode's
+`result.json`; it is `null` when correctness fails or timing is
+inconclusive. `0.90` means at least 90% of the reference's throughput, or a
+candidate runtime no greater than about 111% of the reference runtime.
+This 90% margin is a benchmark policy, not a universal threshold from the
+literature. [Google Benchmark's methodology](https://github.com/google/benchmark/blob/main/docs/user_guide.md)
+supports warmup, timed batches, repetition, and statistical reporting;
+[LLVM's benchmarking guidance](https://llvm.org/docs/Benchmarking.html)
+also recommends repeated runs to recognize noise. The use of an uncertainty
+interval follows the statistical evaluation principles of
+[Georges, Buytaert, and Eeckhout](https://dri.es/files/oopsla07-georges.pdf).
+
+These race-repair programs include very small
+[DataRaceBench microbenchmarks](https://github.com/LLNL/dataracebench).
+Their score measures complete process latency, including OpenMP startup and
+process overhead; it does not isolate kernel throughput or prove scaling.
+An inconclusive result should be rerun on a quieter dedicated Linux host.
+The included GEMM and miniMD tasks continue to report raw performance
+observations without a pass/fail threshold.
 
 If a mode fails before the agent runs, check these prerequisites in this order:
 

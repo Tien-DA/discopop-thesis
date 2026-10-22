@@ -36,8 +36,8 @@ def _parse_args() -> argparse.Namespace:
         "Examples:\n"
         "  ./run --help\n"
         "  ./run --list\n"
-        "  ./run --case drb009_lastprivate_missing --reasoning-effort low\n"
-        "  ./run --case drb009_lastprivate_missing --variant off\n"
+        "  ./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low\n"
+        "  ./run --case DRB095-doall2-taskloop-orig-yes --variant off\n"
         "  ./run                 # select a case interactively"
     )
     parser.formatter_class = argparse.RawDescriptionHelpFormatter

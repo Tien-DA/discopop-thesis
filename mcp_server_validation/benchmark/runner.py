@@ -174,9 +174,9 @@ class BenchmarkRunner:
         # ==============================================================
 
         print()
-        print("=" * 100)
+        print("=" * 110)
         print("BENCHMARK RESULTS")
-        print("=" * 100)
+        print("=" * 110)
 
         print(
             f"{'Mode':<20}"
@@ -185,7 +185,7 @@ class BenchmarkRunner:
             f"{'Total token':>15}"
             f"{'Accuracy':>12}"
             f"{'Latency':>12}"
-            f"{'Performance':>16}"
+            f"{'Performance':>20}"
         )
 
         for mode in self.MODES:
@@ -281,7 +281,7 @@ class BenchmarkRunner:
                 f"{total_tokens:>15,}"
                 f"{accuracy:>12}"
                 f"{latency_text:>12}"
-                f"{performance_text:>16}"
+                f"{performance_text:>20}"
             )
 
             if mode == "mcp":
@@ -301,10 +301,10 @@ class BenchmarkRunner:
                         f"{warm_tokens.get('total', 0):>15,}"
                         f"{accuracy:>12}"
                         f"{warm_latency_text:>12}"
-                        f"{'':>16}"
+                        f"{'':>20}"
                     )
 
-        print("=" * 100)
+        print("=" * 110)
 
         return results
 
@@ -782,6 +782,7 @@ class BenchmarkRunner:
             "evaluation": evaluation,
 
             "performance": evaluation.get("performance"),
+            "performance_point": self._performance_point(evaluation),
 
             "discopop": discopop_result,
         }
@@ -916,6 +917,17 @@ class BenchmarkRunner:
         return {"used": bool(tool_calls), "tool_calls": tool_calls, "tools": dict(sorted(tools.items()))}
 
     @staticmethod
+    def _performance_point(evaluation: dict[str, Any]) -> int | None:
+        performance = evaluation.get("performance")
+        if not isinstance(performance, dict) or not performance.get("available"):
+            return None
+        report = performance.get("report")
+        if not isinstance(report, dict):
+            return None
+        point = report.get("performance_point")
+        return point if type(point) is int and point in (0, 1) else None
+
+    @staticmethod
     def _performance_status(result: dict[str, Any]) -> str:
         performance = result.get("performance")
         if not isinstance(performance, dict):
@@ -925,6 +937,16 @@ class BenchmarkRunner:
         report = performance.get("report")
         if not isinstance(report, dict):
             return "unavailable"
+        status = report.get("status")
+        if status in {"pass", "fail", "inconclusive"}:
+            label = "INCONCLUSIVE" if status == "inconclusive" else status.upper()
+            ratio = None
+            comparisons = report.get("comparisons")
+            if isinstance(comparisons, list) and comparisons:
+                ratio = comparisons[0].get("ratio") if isinstance(comparisons[0], dict) else None
+            if isinstance(ratio, (int, float)):
+                return f"{label} {ratio:.2f}x"
+            return label
         comparisons = report.get("comparisons")
         if isinstance(comparisons, list):
             return f"{len(comparisons)} comparison(s)"
@@ -936,7 +958,7 @@ class BenchmarkRunner:
         mode: str,
         result: dict[str, Any],
     ) -> None:
-        """Print task-defined measurements without interpreting them as a score."""
+        """Print task-defined measurements and any separate performance point."""
         performance = result.get("performance")
         if not isinstance(performance, dict):
             return
@@ -951,6 +973,13 @@ class BenchmarkRunner:
         report = performance.get("report")
         if not isinstance(report, dict):
             return
+
+        if report.get("status") in {"pass", "fail", "inconclusive"}:
+            print(
+                f"  Performance point: {report.get('performance_point')} "
+                f"(threshold={report.get('threshold_ratio')}, "
+                f"95% interval={report.get('confidence_interval_95')})"
+            )
 
         metric = report.get("metric")
         unit = report.get("unit")

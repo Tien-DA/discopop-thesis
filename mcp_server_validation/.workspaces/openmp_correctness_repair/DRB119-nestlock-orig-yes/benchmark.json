@@ -1,1 +1,10 @@
-{"name":"drb119_missing_nested_lock","task":"Repair the OpenMP data race in the supplied DataRaceBench program. Preserve parallel computation and pass race and output validation.","language":"C11","parallel_framework":"OpenMP","build_command":"make all","test_command":"make test","profiling_command":"./build/app"}
+{
+  "name": "drb119_missing_nested_lock",
+  "task": "Repair the OpenMP data race in the supplied DataRaceBench program. Preserve parallel computation and pass race and output validation.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

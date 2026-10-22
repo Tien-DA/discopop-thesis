@@ -70,6 +70,9 @@ class BenchmarkEvaluator:
                     "BENCHMARK_REFERENCE_WORKSPACE": str(reference_workspace)
                     if reference_workspace
                     else "",
+                    "BENCHMARK_PERFORMANCE_TOOL": str(
+                        Path(__file__).with_name("performance_repair.py").resolve()
+                    ),
                 },
             )
             performance = self._performance_result(performance_result)
@@ -122,12 +125,11 @@ class BenchmarkEvaluator:
 
     @classmethod
     def _performance_result(cls, result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
-        """Read a task-owned, versioned performance report without grading it.
+        """Read a versioned performance report without changing correctness.
 
         A task's ``performance_command`` must write one JSON object to stdout.
-        The object belongs to the task because only the task knows its trusted
-        reference implementation, workload, and meaningful comparisons.  The
-        benchmark owns transport, storage, and display of that report.
+        The task selects its trusted reference and workload. The runner stores
+        and displays the report, including any task-specific performance point.
         """
         command_result = cls._result(result)
 

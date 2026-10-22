@@ -7,6 +7,7 @@ compiler=${CC:-gcc}
 
 mkdir -p build
 "$compiler" -std=c11 -O0 -g -fopenmp -fsanitize=thread "$source_file" -o build/tsan-app
+"$compiler" -std=c11 -O0 -g -fopenmp "tests/reference/DRB110-ordered-orig-no.c" -o build/reference-app
 
 if ! grep -Eq '^[[:space:]]*#[[:space:]]*pragma[[:space:]]+omp[[:space:]]+(parallel[[:space:]]+(for|sections)|for|sections|task)' "$source_file"; then
     echo "The OpenMP work-sharing construct was removed." >&2
@@ -23,6 +24,12 @@ for workers in 2 4; do
     fi
     if grep -qi "data race" "$errors"; then
         echo "ThreadSanitizer reported a data race with ${workers} workers." >&2
+        exit 1
+    fi
+    reference_output="build/reference-${workers}.out"
+    OMP_NUM_THREADS="$workers" ./build/reference-app >"$reference_output"
+    if ! cmp -s "$output" "$reference_output"; then
+        echo "Program output differs from the official race-free reference with ${workers} workers." >&2
         exit 1
     fi
     if [[ "$expected_output" == "__EMPTY__" ]]; then

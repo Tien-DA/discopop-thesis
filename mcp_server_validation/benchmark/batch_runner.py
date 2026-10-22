@@ -48,10 +48,11 @@ class BatchBenchmarkRunner:
     def _print_results(self, results: dict[str, Any]) -> None:
         print()
         print("BENCHMARK RESULTS")
-        print("-" * 100)
+        print("-" * 110)
         print(
             f"{'Mode':<20}{'Input token':>15}{'Output token':>15}"
             f"{'Total token':>15}{'Accuracy':>12}{'Latency':>12}"
+            f"{'Performance':>20}"
         )
 
         for mode in self.runner.MODES:
@@ -66,6 +67,7 @@ class BatchBenchmarkRunner:
                     tokens,
                     accuracy,
                     result.get("latency_seconds"),
+                    self.runner._performance_status(result),
                 )
                 warm = tokens.get("warm", {})
                 if warm:
@@ -74,6 +76,7 @@ class BatchBenchmarkRunner:
                         warm,
                         accuracy,
                         warm.get("latency_seconds"),
+                        "",
                     )
 
                 tools = result.get("mcp", {}).get("tools", {})
@@ -89,9 +92,10 @@ class BatchBenchmarkRunner:
                     tokens,
                     accuracy,
                     result.get("latency_seconds"),
+                    self.runner._performance_status(result),
                 )
 
-        print("-" * 100)
+        print("-" * 110)
 
     def _print_row(
         self,
@@ -99,6 +103,7 @@ class BatchBenchmarkRunner:
         tokens: dict[str, Any],
         accuracy: str,
         latency: Any,
+        performance: str,
     ) -> None:
         print(
             f"{label:<20}"
@@ -107,6 +112,7 @@ class BatchBenchmarkRunner:
             f"{tokens.get('total', 0):>15,}"
             f"{accuracy:>12}"
             f"{self._latency_text(latency):>12}"
+            f"{performance:>20}"
         )
 
     def _print_averages(
