@@ -1,0 +1,10 @@
+{
+  "name": "drb173_non_sibling_task_dependency",
+  "task": "Repair the OpenMP race between nested non-sibling tasks. Preserve nested task parallelism and the result.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

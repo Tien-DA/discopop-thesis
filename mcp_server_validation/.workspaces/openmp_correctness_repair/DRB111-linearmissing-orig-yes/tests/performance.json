@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB111-linearmissing-orig-yes.c",
+  "reference": "tests/reference/DRB112-linear-orig-no.c",
+  "workers": 4
+}

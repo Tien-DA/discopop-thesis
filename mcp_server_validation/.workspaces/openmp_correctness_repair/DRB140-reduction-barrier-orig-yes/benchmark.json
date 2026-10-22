@@ -1,0 +1,10 @@
+{
+  "name": "drb140_reduction_barrier",
+  "task": "Repair the OpenMP race between initialization and reduction. Preserve the parallel reduction and its result.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

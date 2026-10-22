@@ -1,0 +1,10 @@
+{
+  "name": "drb111_missing_linear",
+  "task": "Repair the OpenMP data race caused by the shared loop index. Preserve the numerical computation and parallel loop.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

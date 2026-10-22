@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB195-diffusion1-yes.c",
+  "reference": "tests/reference/DRB194-diffusion1-no.c",
+  "workers": 4
+}

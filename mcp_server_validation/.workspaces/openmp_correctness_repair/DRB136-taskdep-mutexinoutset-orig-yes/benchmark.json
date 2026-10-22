@@ -1,0 +1,10 @@
+{
+  "name": "drb136_missing_mutexinoutset",
+  "task": "Repair the OpenMP task-dependency race. Preserve the task graph and its parallel work.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

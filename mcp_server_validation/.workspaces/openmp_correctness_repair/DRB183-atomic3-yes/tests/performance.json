@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB183-atomic3-yes.c",
+  "reference": "tests/reference/DRB182-atomic3-no.c",
+  "workers": 2
+}

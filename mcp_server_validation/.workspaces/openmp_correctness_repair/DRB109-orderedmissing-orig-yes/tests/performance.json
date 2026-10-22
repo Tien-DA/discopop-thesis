@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB109-orderedmissing-orig-yes.c",
+  "reference": "tests/reference/DRB110-ordered-orig-no.c",
+  "workers": 4
+}

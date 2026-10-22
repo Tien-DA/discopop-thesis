@@ -1,0 +1,10 @@
+{
+  "name": "drb183_atomic_signal",
+  "task": "Repair the unsynchronized signal write while preserving the OpenMP section behavior.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

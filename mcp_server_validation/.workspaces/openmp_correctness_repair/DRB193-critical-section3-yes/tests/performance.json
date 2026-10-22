@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB193-critical-section3-yes.c",
+  "reference": "tests/reference/DRB192-critical-section3-no.c",
+  "workers": 2
+}

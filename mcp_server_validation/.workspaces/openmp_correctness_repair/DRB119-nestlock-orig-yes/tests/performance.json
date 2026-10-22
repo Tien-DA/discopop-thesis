@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB119-nestlock-orig-yes.c",
+  "reference": "tests/reference/DRB118-nestlock-orig-no.c",
+  "workers": 4
+}

@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB173-non-sibling-taskdep-yes.c",
+  "reference": "tests/reference/DRB174-non-sibling-taskdep-no.c",
+  "workers": 4
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "ompscr",
+  "candidate": "src/c_loopB.badSolution2.c",
+  "reference": "tests/reference/c_loopB.pipelineSolution.c",
+  "workers": 4,
+  "args": [
+    "10000",
+    "100"
+  ]
+}

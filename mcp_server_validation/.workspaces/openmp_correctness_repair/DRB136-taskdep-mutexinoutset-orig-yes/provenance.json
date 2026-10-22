@@ -1,0 +1,17 @@
+{
+  "suite": "DataRaceBench",
+  "version": "1.4.1",
+  "upstream_url": "https://github.com/LLNL/dataracebench",
+  "upstream_tag": "v1.4.1",
+  "upstream_commit": "7d07c5d637fa80f1fd7c239bdc34ae53094badc2",
+  "source_file": "DRB136-taskdep-mutexinoutset-orig-yes.c",
+  "reference_file": "DRB135-taskdep-mutexinoutset-orig-no.c",
+  "language": "C",
+  "parallel_framework": "OpenMP",
+  "ground_truth": "data race = yes",
+  "labels": [
+    "Y1",
+    "Y6"
+  ],
+  "license": "BSD-3-Clause; copied in LICENSE.txt"
+}

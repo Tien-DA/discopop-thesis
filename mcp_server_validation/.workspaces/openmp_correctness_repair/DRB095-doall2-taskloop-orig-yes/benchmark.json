@@ -1,0 +1,10 @@
+{
+  "name": "drb095_taskloop_inner_private",
+  "task": "Repair the OpenMP data race in this two-dimensional taskloop. Preserve the matrix update and parallel taskloop work.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

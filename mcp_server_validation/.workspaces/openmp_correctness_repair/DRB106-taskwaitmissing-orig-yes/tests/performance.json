@@ -1,0 +1,7 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB106-taskwaitmissing-orig-yes.c",
+  "reference": "tests/reference/DRB105-taskwait-orig-no.c",
+  "workers": 4,
+  "reference_driver": "tests/reference/run_fib10.c"
+}

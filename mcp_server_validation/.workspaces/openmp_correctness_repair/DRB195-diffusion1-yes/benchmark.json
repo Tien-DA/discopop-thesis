@@ -1,0 +1,10 @@
+{
+  "name": "drb195_diffusion_alias",
+  "task": "Repair the race caused by aliased diffusion buffers while preserving parallel stencil updates.",
+  "language": "C11",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/app",
+  "performance_command": "python3 \"$BENCHMARK_PERFORMANCE_TOOL\""
+}

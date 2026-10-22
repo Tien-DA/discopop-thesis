@@ -1,0 +1,6 @@
+{
+  "kind": "drb",
+  "candidate": "src/DRB136-taskdep-mutexinoutset-orig-yes.c",
+  "reference": "tests/reference/DRB135-taskdep-mutexinoutset-orig-no.c",
+  "workers": 4
+}
