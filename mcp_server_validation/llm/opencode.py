@@ -335,9 +335,10 @@ class OpenCodeClient:
     # LLM CONFIGURATION
     # ==================================================================
 
-    SERVER_URL = "http://localhost:18000/v1"
+    # None means: use the provider from the user's own OpenCode configuration.
+    SERVER_URL: Optional[str] = None
 
-    API_KEY = "ppkitestapikey"
+    API_KEY: Optional[str] = None
 
     MODEL = "Qwen/Qwen3.8-27B"
 
@@ -360,12 +361,16 @@ class OpenCodeClient:
             "BENCHMARK_LLM_MODEL", self.MODEL
         )
 
-        self.server_url = server_url if server_url is not None else os.environ.get(
-            "BENCHMARK_LLM_SERVER_URL", self.SERVER_URL
+        self.server_url: Optional[str] = (
+            server_url
+            if server_url is not None
+            else os.environ.get("BENCHMARK_LLM_SERVER_URL", self.SERVER_URL)
         )
 
-        self.api_key = api_key if api_key is not None else os.environ.get(
-            "BENCHMARK_LLM_API_KEY", self.API_KEY
+        self.api_key: Optional[str] = (
+            api_key
+            if api_key is not None
+            else os.environ.get("BENCHMARK_LLM_API_KEY", self.API_KEY)
         )
 
         self.provider = os.environ.get(
@@ -480,25 +485,6 @@ class OpenCodeClient:
                 "reserved": 20000,
             },
 
-            "provider": {
-                self.provider: {
-                    "npm": "@ai-sdk/openai-compatible",
-
-                    "name": "HPC_LAB (GH1)",
-
-                    "options": {
-                        "baseURL": self.server_url,
-                        "apiKey": self.api_key,
-                    },
-
-                    "models": {
-                        self.model: {
-                            "name": self.model,
-                        }
-                    },
-                }
-            },
-
             "mcp": {
                 self.mcp_server.name: {
                     "type": "local",
@@ -513,6 +499,27 @@ class OpenCodeClient:
                 }
             },
         }
+
+        # Only override the provider when an endpoint or key was given
+        # explicitly.  Otherwise the provider from the user's own OpenCode
+        # configuration (e.g. ~/.config/opencode) is used unchanged.
+        provider_options: dict[str, str] = {}
+        if self.server_url:
+            provider_options["baseURL"] = self.server_url
+        if self.api_key:
+            provider_options["apiKey"] = self.api_key
+
+        if provider_options:
+            provider_config: dict[str, Any] = {"options": provider_options}
+            if self.server_url:
+                provider_config.update(
+                    {
+                        "npm": "@ai-sdk/openai-compatible",
+                        "name": "HPC_LAB (GH1)",
+                        "models": {self.model: {"name": self.model}},
+                    }
+                )
+            config["provider"] = {self.provider: provider_config}
 
         config_path.write_text(
             json.dumps(
@@ -809,16 +816,20 @@ class OpenCodeClient:
         # OPENCODE COMMAND
         # --------------------------------------------------------------
 
+        # OpenCode 2: the reasoning variant is part of the model string
+        # (provider/model#variant), there is no --dir flag (the process
+        # runs inside the workspace instead), and --standalone starts a
+        # private server so the workspace's opencode.json (MCP, compaction)
+        # is used rather than that of a shared background service.
         command = [
             "opencode",
             "run",
+            "--standalone",
             "--format",
             "json",
             "--auto",
             "--model",
-            opencode_model,
-            "--variant",
-            self.reasoning_effort,
+            f"{opencode_model}#{self.reasoning_effort}",
         ]
 
         if session_id:
@@ -829,13 +840,7 @@ class OpenCodeClient:
                 ]
             )
 
-        command.extend(
-            [
-            "--dir",
-            str(workspace),
-            prompt,
-            ]
-        )
+        command.append(prompt)
 
         print()
         print("=" * 70)
@@ -884,6 +889,7 @@ class OpenCodeClient:
 
             process = subprocess.Popen(
                 command,
+                cwd=workspace,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -1106,6 +1112,16 @@ class OpenCodeClient:
                     else:
                         step_cache_read = 0
                         step_cache_write = 0
+
+                    # OpenCode 2 no longer reports a total.
+                    if not step_total:
+                        step_total = (
+                            step_input
+                            + step_output
+                            + step_reasoning
+                            + step_cache_read
+                            + step_cache_write
+                        )
 
                     # --------------------------------------------------
                     # Step number

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+from typing import Union
 
 from benchmark.case import BenchmarkCase
 
@@ -22,10 +23,29 @@ def _parse_args() -> argparse.Namespace:
         help="List discovered cases and exit.",
     )
     parser.add_argument(
+        "--agent",
+        choices=("opencode", "claude"),
+        default=os.environ.get("BENCHMARK_AGENT", "opencode"),
+        help=(
+            "Coding agent CLI to benchmark (default: %(default)s). Both use "
+            "the tool's own existing setup; for claude, 'xhigh' and 'max' "
+            "are valid effort levels in addition to low, medium and high."
+        ),
+    )
+    parser.add_argument(
+        "--claude-model",
+        default=os.environ.get("BENCHMARK_CLAUDE_MODEL"),
+        metavar="MODEL",
+        help=(
+            "Model for --agent claude: an alias such as sonnet, opus or "
+            "haiku, or a full model name. Default: the Claude Code default."
+        ),
+    )
+    parser.add_argument(
         "--reasoning-effort",
         "--variant",
         dest="reasoning_effort",
-        choices=("xhigh", "high", "medium", "low", "off"),
+        choices=("max", "xhigh", "high", "medium", "low", "off"),
         default=os.environ.get("BENCHMARK_REASONING_EFFORT", "medium"),
         help=(
             "OpenCode reasoning variant (default: %(default)s). "
@@ -38,6 +58,8 @@ def _parse_args() -> argparse.Namespace:
         "  ./run --list\n"
         "  ./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low\n"
         "  ./run --case DRB095-doall2-taskloop-orig-yes --variant off\n"
+        "  ./run --agent claude --case DRB095-doall2-taskloop-orig-yes\n"
+        "  ./run --agent claude --claude-model haiku --case DRB095-doall2-taskloop-orig-yes\n"
         "  ./run                 # select a case interactively"
     )
     parser.formatter_class = argparse.RawDescriptionHelpFormatter
@@ -107,6 +129,7 @@ def main():
 
     from benchmark.batch_runner import BatchBenchmarkRunner
     from benchmark.runner import BenchmarkRunner
+    from llm.claude_code import ClaudeCodeClient
     from llm.opencode import OpenCodeClient
 
     # ---------------------------------------------------------
@@ -120,55 +143,62 @@ def main():
     )
 
     # ==============================================================
-    # LLM configuration
+    # Create the coding agent client
+    #
+    # The selected agent CLI is the actual coding agent used by the
+    # benchmark. Both agents default to the user's own existing setup.
     # ==============================================================
 
-    server_url = os.environ.get(
-        "BENCHMARK_LLM_SERVER_URL",
-        "http://localhost:18000/v1",
-    )
-
-    api_key = os.environ.get(
-        "BENCHMARK_LLM_API_KEY",
-        "ppkitestapikey",
-    )
-
-    model = os.environ.get(
-        "BENCHMARK_LLM_MODEL",
-        "Qwen/Qwen3.8-27B",
-    )
+    agent_client: Union[OpenCodeClient, ClaudeCodeClient]
 
     print()
-    print("LLM configuration:")
-    print(
-        f"  Server: {server_url}"
-    )
-    print(
-        f"  Model:  {model}"
-    )
-    print(
-        f"  Reasoning effort: {args.reasoning_effort}"
-    )
+    print(f"Agent: {args.agent}")
 
-    # ==============================================================
-    # Create OpenCode client
-    #
-    # OpenCode is the actual coding agent used by the benchmark.
-    # ==============================================================
+    if args.agent == "claude":
+        agent_client = ClaudeCodeClient(
+            model=args.claude_model,
+            reasoning_effort=args.reasoning_effort,
+        )
+        print(
+            f"  Model:  {agent_client.model or '(Claude Code default)'}"
+        )
+        print(
+            f"  Reasoning effort: {args.reasoning_effort}"
+        )
+    else:
+        # Unset means: use the provider from the user's own OpenCode setup.
+        server_url = os.environ.get("BENCHMARK_LLM_SERVER_URL")
 
-    opencode = OpenCodeClient(
-        model=model,
-        server_url=server_url,
-        api_key=api_key,
-        reasoning_effort=args.reasoning_effort,
-    )
+        api_key = os.environ.get("BENCHMARK_LLM_API_KEY")
+
+        model = os.environ.get(
+            "BENCHMARK_LLM_MODEL",
+            "Qwen/Qwen3.8-27B",
+        )
+
+        print(
+            f"  Server: {server_url or '(from OpenCode configuration)'}"
+        )
+        print(
+            f"  Model:  {model}"
+        )
+        print(
+            f"  Reasoning effort: {args.reasoning_effort}"
+        )
+
+        agent_client = OpenCodeClient(
+            model=model,
+            server_url=server_url,
+            api_key=api_key,
+            reasoning_effort=args.reasoning_effort,
+        )
 
     # ==============================================================
     # Create benchmark runner
     # ==============================================================
 
     runner = BenchmarkRunner(
-        llm_client=opencode,
+        llm_client=agent_client,
         output_root=output,
     )
 
