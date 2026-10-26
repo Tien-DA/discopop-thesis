@@ -66,8 +66,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r mcp_server_validation/requirements.txt
 ```
 
-Install OpenCode 2, which provides the `opencode run --format json --auto`
-interface used by this runner:
+Install and configure OpenCode 2 for the provider and model you want. The
+benchmark uses that existing setup and the `opencode run --format json --auto`
+interface:
 
 ```bash
 npm install -g opencode-ai
@@ -75,7 +76,7 @@ opencode --version
 ```
 
 OpenCode 1 uses a different CLI (`--variant`, `--dir`) and is not supported by this runner.
-The OpenCode project documents the OpenCode 1 installation and command-line
+The OpenCode project documents installation and command-line
 interface at [its official documentation](https://docs.opencode.ai/docs/).
 
 Confirm the local tools before spending model tokens:
@@ -88,30 +89,28 @@ opencode --version
 gcc --version
 ```
 
-## Configure the model endpoint
+## Configure OpenCode
 
-The benchmark calls an OpenAI-compatible endpoint through OpenCode. If
-`opencode` is already set up (e.g. in `~/.config/opencode/opencode.json`) with
-the provider and model you want, you do not need to set anything: leave
-`BENCHMARK_LLM_SERVER_URL` and `BENCHMARK_LLM_API_KEY` unset and the benchmark
-uses your OpenCode provider as is. `BENCHMARK_LLM_PROVIDER` and
-`BENCHMARK_LLM_MODEL` must then name that provider and model.
+Set your provider, server, credentials, and model in OpenCode before running
+the benchmark. The benchmark does not accept provider, server, API key, or
+base-model settings. It reads the model most recently selected in OpenCode's
+TUI and passes it to every benchmark run with `--model`. Select a model with
+`/models` in OpenCode before starting the benchmark. The provider and
+credentials remain under OpenCode's control.
 
-Otherwise, set these variables for your own accessible model; they apply to
-every benchmark mode:
+Each run writes a temporary project-level `opencode.json` containing only the
+DiscoPoP MCP setting for that benchmark mode. It removes the file when the agent
+finishes. Your OpenCode provider, model, credentials, and other settings remain
+under OpenCode's control.
 
-```bash
-export BENCHMARK_LLM_SERVER_URL="https://your-server.example/v1"
-export BENCHMARK_LLM_API_KEY="your-api-key"
-export BENCHMARK_LLM_MODEL="provider-model-id"
-# Optional. The OpenCode provider label defaults to HPC_Lab.
-export BENCHMARK_LLM_PROVIDER="HPC_Lab"
-```
-
-`BENCHMARK_LLM_SERVER_URL`, `BENCHMARK_LLM_API_KEY`, and
-`BENCHMARK_LLM_MODEL` replace the former lab-specific defaults. The generated
-OpenCode configuration never gets committed: it is written only inside a run's
-isolated workspace.
+The benchmark prints the selected agent, requested variant, and OpenCode's most
+recently selected provider, model, and variant once at the start. It reads that
+selection from OpenCode's model state once and uses it for all three modes. The
+printed provider, model, and variant come from that saved selection, except when
+`--reasoning-effort` or `--variant` explicitly overrides the variant. It asks OpenCode for the
+selected provider's endpoint when available, and leaves credentials under
+OpenCode's control without reading or printing secrets. Each mode omits these
+repeated configuration lines.
 
 ## Run DRB095
 
@@ -148,8 +147,7 @@ files. `BENCHMARK_AGENT` sets the default for a shell session.
 
 For `claude`, the model defaults to your Claude Code default; select another with
 `--claude-model` (an alias such as `sonnet`, `opus` or `haiku`, or a full model
-name), or set `BENCHMARK_CLAUDE_MODEL` for a shell session. The
-`BENCHMARK_LLM_*` variables only apply to OpenCode. The MCP server is passed
+name), or set `BENCHMARK_CLAUDE_MODEL` for a shell session. The MCP server is passed
 with `--strict-mcp-config`, so your own MCP servers never reach a run, and
 `--reasoning-effort` maps to `--effort` (`off` omits the flag). Claude Code does
 not report reasoning tokens separately, so those are recorded as 0.
@@ -163,26 +161,37 @@ DiscoPoP Python packages are installed.
 ./run --help
 ```
 
-`--reasoning-effort` controls the OpenCode `--variant` passed to every agent
-invocation in the run. `--variant` is an alias for compatibility with OpenCode's
-own terminology. The default is `medium`; set
-`BENCHMARK_REASONING_EFFORT` to change that default for a shell session.
+For Claude Code, `--reasoning-effort` controls the `--effort` argument.
+`--variant` is an alias for this flag. The Claude default is `medium`; set
+`BENCHMARK_REASONING_EFFORT` to change it for a shell session.
+
+For OpenCode 2, the same flag selects a variant of OpenCode's last selected
+model for that run. For example, if you last selected `openai/gpt-6.1-sol`,
+`--reasoning-effort low` launches `opencode run --model
+openai/gpt-6.1-sol#low`. The benchmark reads the model from OpenCode; it does
+not configure a provider or model in the benchmark workspace. Without the flag,
+it reuses the variant saved for that model in OpenCode. If no named variant was
+saved, it passes the model without a variant suffix. `off` maps to OpenCode's `none` variant.
+OpenCode decides whether the selected model supports the requested variant.
 
 ```bash
-# Faster, lower-cost DRB095 run
+# OpenCode with a low reasoning variant
 ./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low
 
+
+# Faster, lower-cost DRB095 run
+./run --agent claude --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low
+
 # Disable thinking traces for the fastest mode supported by the model
-./run --case DRB095-doall2-taskloop-orig-yes --variant off
+./run --agent claude --case DRB095-doall2-taskloop-orig-yes --variant off
 
 # Maximum reasoning depth for a difficult task
-./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort xhigh
+./run --agent claude --case DRB095-doall2-taskloop-orig-yes --reasoning-effort xhigh
 ```
 
-Accepted values are `xhigh`, `high`, `medium`, `low`, and `off`. Higher effort
-can improve difficult repairs but costs more tokens and latency. The selected
-value is printed at the start of a benchmark and recorded in the OpenCode command
-shown in the mode log.
+Claude accepts `max`, `xhigh`, `high`, `medium`, `low`, and `off`. OpenCode also
+accepts custom variant names defined for its selected model. The selected
+value and resulting command are printed in the benchmark log.
 
 The source starts with the known race. A successful agent repair must keep the
 OpenMP taskloop, build with `make all`, and pass the evaluator's
@@ -286,8 +295,8 @@ observations without a pass/fail threshold.
 
 If a mode fails before the agent runs, check these prerequisites in this order:
 
-1. `opencode` is on `PATH` and is OpenCode 2.
-2. The model endpoint, key, model identifier, and provider label are accepted by OpenCode.
+1. The selected `opencode` (version 2) or `claude` command is on `PATH`.
+2. The selected agent is authenticated and has a usable model configured.
 3. `discopop_cc`, `discopop_explorer`, and `discopop_mcp_server` come from the same `.venv` used for the runner.
 4. GCC can compile `-fopenmp -fsanitize=thread` and execute the resulting binary on Linux.
 5. The profiler sees a supported Clang/LLVM installation (versions 19–22).

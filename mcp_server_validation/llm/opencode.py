@@ -11,8 +11,7 @@ Responsibilities of OpenCode:
     - interact with MCP tools
 
 Responsibilities of this class:
-    - configure OpenCode
-    - configure the LLM provider
+    - configure the benchmark's MCP server in OpenCode
     - enable/disable MCP
     - start OpenCode
     - collect JSON events
@@ -36,6 +35,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import quote, urlsplit, urlunsplit
 
 
 # ======================================================================
@@ -332,56 +332,18 @@ class OpenCodeClient:
     """
 
     # ==================================================================
-    # LLM CONFIGURATION
-    # ==================================================================
-
-    # None means: use the provider from the user's own OpenCode configuration.
-    SERVER_URL: Optional[str] = None
-
-    API_KEY: Optional[str] = None
-
-    MODEL = "Qwen/Qwen3.8-27B"
-
-    PROVIDER = "HPC_Lab"
-
-    # ==================================================================
     # INITIALIZATION
     # ==================================================================
 
     def __init__(
         self,
-        model: Optional[str] = None,
-        server_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        reasoning_effort: Optional[str] = None,
         mcp_server: Optional[LocalMCPServer] = None,
+        executable: str = "opencode",
+        reasoning_effort: Optional[str] = None,
     ) -> None:
-
-        self.model = model if model is not None else os.environ.get(
-            "BENCHMARK_LLM_MODEL", self.MODEL
-        )
-
-        self.server_url: Optional[str] = (
-            server_url
-            if server_url is not None
-            else os.environ.get("BENCHMARK_LLM_SERVER_URL", self.SERVER_URL)
-        )
-
-        self.api_key: Optional[str] = (
-            api_key
-            if api_key is not None
-            else os.environ.get("BENCHMARK_LLM_API_KEY", self.API_KEY)
-        )
-
-        self.provider = os.environ.get(
-            "BENCHMARK_LLM_PROVIDER", self.PROVIDER
-        )
-
-        self.reasoning_effort = (
-            reasoning_effort
-            if reasoning_effort is not None
-            else os.environ.get("BENCHMARK_REASONING_EFFORT", "medium")
-        )
+        self.executable = executable
+        self.reasoning_effort = reasoning_effort
+        self._recent_model: Optional[tuple[str, str, Optional[str]]] = None
 
         self.mcp_server = (
             mcp_server
@@ -434,16 +396,228 @@ class OpenCodeClient:
     # OPEN CODE CONFIGURATION
     # ==================================================================
 
+    def _select_recent_model(self) -> tuple[str, str, Optional[str]]:
+        """Keep one TUI model and variant for every benchmark mode."""
+        if self._recent_model is not None:
+            return self._recent_model
+
+        state_home = Path(
+            os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
+        )
+        state_file = state_home / "opencode" / "model.json"
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            state = {}
+
+        recent = state.get("recent") if isinstance(state, dict) else None
+        selected = recent[0] if isinstance(recent, list) and recent else None
+        provider = selected.get("providerID") if isinstance(selected, dict) else None
+        model = selected.get("modelID") if isinstance(selected, dict) else None
+        if not isinstance(provider, str) or not provider or not isinstance(model, str) or not model:
+            raise RuntimeError(
+                "No recent OpenCode model selection found in "
+                f"{state_file}. Select a model with /models in OpenCode "
+                "before running the benchmark."
+            )
+        variants = state.get("variant") if isinstance(state, dict) else None
+        saved_variant = variants.get(f"{provider}/{model}") if isinstance(variants, dict) else None
+        variant = (
+            saved_variant
+            if isinstance(saved_variant, str) and saved_variant and saved_variant != "default"
+            else None
+        )
+        self._recent_model = (provider, model, variant)
+        return self._recent_model
+
+    def _selected_variant(self) -> Optional[str]:
+        if self.reasoning_effort is not None:
+            return "none" if self.reasoning_effort == "off" else self.reasoning_effort
+        return self._select_recent_model()[2]
+
+    def _model_selector(self) -> str:
+        provider, model, _ = self._select_recent_model()
+        selector = f"{provider}/{model}"
+        variant = self._selected_variant()
+        if variant is not None:
+            selector += f"#{variant}"
+        return selector
+
+    def describe_recent_selection(self, workspace: Path) -> dict[str, str]:
+        """Report the model that will be used in every benchmark mode."""
+        provider, model, _ = self._select_recent_model()
+
+        provider_info = self._read_opencode_json(
+            ["api", "GET", f"/api/provider/{quote(provider, safe='')}"],
+            Path(workspace).resolve(),
+        )
+        provider_data = provider_info.get("data") if isinstance(provider_info, dict) else None
+        settings = provider_data.get("settings") if isinstance(provider_data, dict) else None
+        endpoint = (
+            settings.get("baseURL") or settings.get("baseUrl") or settings.get("url")
+            if isinstance(settings, dict) else None
+        )
+        model_info = self._read_opencode_json(
+            ["api", "model.list"], Path(workspace).resolve()
+        )
+        models = model_info.get("data") if isinstance(model_info, dict) else None
+        if isinstance(models, list):
+            for entry in models:
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("providerID") != provider or entry.get("id") != model:
+                    continue
+                model_settings = entry.get("settings")
+                if isinstance(model_settings, dict):
+                    endpoint = (
+                        model_settings.get("baseURL")
+                        or model_settings.get("baseUrl")
+                        or model_settings.get("url")
+                        or endpoint
+                    )
+                break
+        return {
+            "provider": provider,
+            "model": model,
+            "variant": self._selected_variant() or "default (no named variant)",
+            "server": self._safe_endpoint(endpoint),
+            "credentials": "not inspected (OpenCode manages authentication)",
+        }
+
+    def describe_configuration(self, workspace: Path) -> dict[str, str]:
+        """Inspect OpenCode's configuration for this workspace without changing it.
+
+        OpenCode 2's model.default API includes its automatic model fallback;
+        config.get supplies custom provider settings. Never return a secret.
+        """
+        workspace = Path(workspace).resolve()
+        model_info = self._read_opencode_json(
+            ["api", "model.default"], workspace
+        )
+        config_info = self._read_opencode_json(
+            ["api", "config.get"], workspace
+        )
+
+        # OpenCode 2 returns ordered documents. Older versions' debug command
+        # returns a resolved object. Both are useful if the API is unavailable.
+        if config_info is None:
+            config_info = self._read_opencode_json(
+                ["debug", "config"], workspace
+            )
+
+        config: dict[str, Any] = {}
+        entries = config_info
+        if isinstance(entries, dict) and isinstance(entries.get("data"), list):
+            entries = entries["data"]
+        if isinstance(entries, list):
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("type") == "document":
+                    info = entry.get("info")
+                    if isinstance(info, dict):
+                        self._merge_configuration(config, info)
+        elif isinstance(entries, dict):
+            config = entries
+
+        model = None
+        provider = None
+        data = model_info.get("data") if isinstance(model_info, dict) else None
+        if isinstance(data, dict):
+            model = data.get("modelID") or data.get("id")
+            provider = data.get("providerID")
+
+        configured_model = config.get("model")
+        if not model and isinstance(configured_model, str):
+            model = configured_model
+        elif not model and isinstance(configured_model, dict):
+            model = configured_model.get("model") or configured_model.get("id")
+            provider = provider or configured_model.get("providerID")
+
+        if isinstance(model, str) and "/" in model and not provider:
+            provider, model = model.split("/", 1)
+
+        providers = config.get("providers")
+        settings = providers.get(provider) if isinstance(providers, dict) and provider else None
+        settings = settings.get("settings") if isinstance(settings, dict) else None
+        endpoint = (
+            settings.get("baseURL") or settings.get("baseUrl") or settings.get("url")
+            if isinstance(settings, dict) else None
+        )
+        if isinstance(provider, str):
+            provider_info = self._read_opencode_json(
+                ["api", "GET", f"/api/provider/{quote(provider, safe='')}"],
+                workspace,
+            )
+            provider_data = provider_info.get("data") if isinstance(provider_info, dict) else None
+            live_settings = provider_data.get("settings") if isinstance(provider_data, dict) else None
+            if isinstance(live_settings, dict):
+                endpoint = (
+                    live_settings.get("baseURL")
+                    or live_settings.get("baseUrl")
+                    or live_settings.get("url")
+                    or endpoint
+                )
+
+        result = {
+            "provider": provider if isinstance(provider, str) else "unavailable",
+            "model": model if isinstance(model, str) else "OpenCode default (unavailable)",
+            "server": self._safe_endpoint(endpoint),
+            "credentials": "managed by OpenCode (hidden)",
+        }
+        return result
+
+    @staticmethod
+    def _merge_configuration(target: dict[str, Any], source: dict[str, Any]) -> None:
+        for key, value in source.items():
+            if isinstance(value, dict) and isinstance(target.get(key), dict):
+                OpenCodeClient._merge_configuration(target[key], value)
+            else:
+                target[key] = value
+
+    def _read_opencode_json(self, arguments: list[str], workspace: Path) -> Any:
+        try:
+            completed = subprocess.run(
+                [self.executable, *arguments],
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if completed.returncode != 0:
+            return None
+        try:
+            return json.loads(completed.stdout)
+        except (TypeError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _safe_endpoint(value: Any) -> str:
+        if not isinstance(value, str) or not value:
+            return "provider default / unavailable"
+        try:
+            parsed = urlsplit(value)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                raise ValueError("invalid endpoint")
+            host = parsed.hostname
+            port = parsed.port
+        except ValueError:
+            return "custom endpoint (invalid URL; hidden)"
+        if ":" in host:
+            host = f"[{host}]"
+        if port:
+            host = f"{host}:{port}"
+        return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+
     def _write_project_config(
             self,
             workspace: Path,
             mcp_enabled: bool,
     ) -> Path:
         """
-        Create a temporary project-level OpenCode configuration.
-
-        The provider configuration intentionally matches the previously
-        working OpenCode configuration used with the university LLM server.
+        Create temporary benchmark MCP settings without changing the user's
+        OpenCode provider, model, credentials, or other preferences.
         """
 
         config_path = workspace / "opencode.json"
@@ -467,24 +641,8 @@ class OpenCodeClient:
                 f"  - {self.mcp_server.source_entrypoint}"
             )
 
-        # --------------------------------------------------------------
-        # This MUST match the known-working global OpenCode config.
-        # --------------------------------------------------------------
-
         config = {
             "$schema": "https://opencode.ai/config.json",
-
-            # Keep the agent autonomous, while preventing a long sequence of
-            # shell output from being sent back to the model on every later
-            # turn.  This is especially important with a self-hosted model:
-            # repeatedly prefilling a 100k+ token transcript dominates the
-            # latency even when the actual repair is small.
-            "compaction": {
-                "auto": True,
-                "prune": True,
-                "reserved": 20000,
-            },
-
             "mcp": {
                 self.mcp_server.name: {
                     "type": "local",
@@ -499,27 +657,6 @@ class OpenCodeClient:
                 }
             },
         }
-
-        # Only override the provider when an endpoint or key was given
-        # explicitly.  Otherwise the provider from the user's own OpenCode
-        # configuration (e.g. ~/.config/opencode) is used unchanged.
-        provider_options: dict[str, str] = {}
-        if self.server_url:
-            provider_options["baseURL"] = self.server_url
-        if self.api_key:
-            provider_options["apiKey"] = self.api_key
-
-        if provider_options:
-            provider_config: dict[str, Any] = {"options": provider_options}
-            if self.server_url:
-                provider_config.update(
-                    {
-                        "npm": "@ai-sdk/openai-compatible",
-                        "name": "HPC_LAB (GH1)",
-                        "models": {self.model: {"name": self.model}},
-                    }
-                )
-            config["provider"] = {self.provider: provider_config}
 
         config_path.write_text(
             json.dumps(
@@ -780,6 +917,8 @@ class OpenCodeClient:
             exist_ok=True,
         )
 
+        model_selector = self._model_selector()
+
         # --------------------------------------------------------------
         # CREATE TEMPORARY OPENCODE CONFIG
         # --------------------------------------------------------------
@@ -796,41 +935,24 @@ class OpenCodeClient:
         )
 
         # --------------------------------------------------------------
-        # OPENCODE MODEL ID
-        # --------------------------------------------------------------
-        #
-        # OpenCode expects:
-        #
-        #     provider/model
-        #
-        # Here:
-        #
-        #     HPC_Lab/Qwen/Qwen3.8-27B
-        # --------------------------------------------------------------
-
-        opencode_model = (
-            f"{self.provider}/{self.model}"
-        )
-
-        # --------------------------------------------------------------
         # OPENCODE COMMAND
         # --------------------------------------------------------------
 
-        # OpenCode 2: the reasoning variant is part of the model string
-        # (provider/model#variant), there is no --dir flag (the process
-        # runs inside the workspace instead), and --standalone starts a
-        # private server so the workspace's opencode.json (MCP, compaction)
-        # is used rather than that of a shared background service.
+        # OpenCode 2 runs in the workspace. --standalone starts a
+        # private server so the workspace's opencode.json (MCP settings)
+        # is used rather than that of a shared background service. The model
+        # comes from the user's last TUI selection; its saved variant or an
+        # explicit benchmark override is applied to that same model.
         command = [
-            "opencode",
+            self.executable,
             "run",
             "--standalone",
             "--format",
             "json",
             "--auto",
-            "--model",
-            f"{opencode_model}#{self.reasoning_effort}",
         ]
+
+        command.extend(["--model", model_selector])
 
         if session_id:
             command.extend(
@@ -849,14 +971,6 @@ class OpenCodeClient:
 
         print(
             f"Invocation ID: {invocation_id}"
-        )
-
-        print(
-            f"Model:         {opencode_model}"
-        )
-
-        print(
-            f"Reasoning:     {self.reasoning_effort}"
         )
 
         print(

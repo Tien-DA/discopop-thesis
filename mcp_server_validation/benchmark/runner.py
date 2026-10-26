@@ -70,7 +70,7 @@ class BenchmarkRunner:
         if not isinstance(llm_client, (OpenCodeClient, ClaudeCodeClient)):
             raise TypeError(
                 "BenchmarkRunner requires an OpenCodeClient or ClaudeCodeClient. "
-                "Do not pass LLMClient here."
+                "Select one of the supported coding agents."
             )
 
         self.llm = llm_client

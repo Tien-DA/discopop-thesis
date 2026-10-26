@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -100,6 +101,25 @@ class DiscoPoPRunner:
 
             return failure
 
+        profile_executable = self._profile_executable(
+            project, case.profiling_command
+        )
+        if profile_executable is not None and not profile_executable.is_file():
+            message = (
+                f"Build returned success but did not create the profiling "
+                f"executable: {profile_executable}. Check the compiler output above."
+            )
+            failure_result = (
+                1,
+                build_result[1],
+                build_result[2],
+                build_result[3] + "\n" + message,
+            )
+            print()
+            print("[DiscoPoP] Build failed")
+            self._print_process_output(failure_result)
+            return self._failure("compile", failure_result)
+
         # ------------------------------------------------------------
         # EXECUTE
         # ------------------------------------------------------------
@@ -127,6 +147,7 @@ class DiscoPoPRunner:
             print()
             print("[DiscoPoP] Execute returned non-zero")
             print(f"[DiscoPoP] Return code: {result[0]}")
+            self._print_process_output(result)
 
             print()
             print("[DiscoPoP] Continuing because execution output may still be valid.")
@@ -147,6 +168,9 @@ class DiscoPoPRunner:
         )
 
         if missing:
+            if result[0] == 0:
+                print("[DiscoPoP] Execution finished but profiler artifacts are missing.")
+                self._print_process_output(result)
             return {
                 "success": False,
                 "analysis_available": False,
@@ -395,6 +419,17 @@ cd "$DP_PROJECT_ROOT_DIR"
     # ================================================================
     # HELPERS
     # ================================================================
+
+    @staticmethod
+    def _profile_executable(project: Path, command: str | None) -> Path | None:
+        """Find the task executable in a profiling command when it is relative."""
+
+        if not command:
+            return None
+        for token in shlex.split(command):
+            if token.startswith("./"):
+                return project / token
+        return None
 
     @staticmethod
     def _print_process_output(

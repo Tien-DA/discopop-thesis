@@ -45,25 +45,33 @@ def _parse_args() -> argparse.Namespace:
         "--reasoning-effort",
         "--variant",
         dest="reasoning_effort",
-        choices=("max", "xhigh", "high", "medium", "low", "off"),
-        default=os.environ.get("BENCHMARK_REASONING_EFFORT", "medium"),
+        metavar="VARIANT",
+        default=None,
         help=(
-            "OpenCode reasoning variant (default: %(default)s). "
-            "Use low or off to reduce latency."
+            "OpenCode model variant for this run, or Claude Code effort level. "
+            "For OpenCode, 'off' selects the 'none' variant; omit this flag "
+            "to reuse the variant saved for the last selected model."
         ),
     )
     parser.epilog = (
         "Examples:\n"
         "  ./run --help\n"
         "  ./run --list\n"
-        "  ./run --case DRB095-doall2-taskloop-orig-yes --reasoning-effort low\n"
-        "  ./run --case DRB095-doall2-taskloop-orig-yes --variant off\n"
+        "  ./run --reasoning-effort low --case DRB095-doall2-taskloop-orig-yes\n"
         "  ./run --agent claude --case DRB095-doall2-taskloop-orig-yes\n"
         "  ./run --agent claude --claude-model haiku --case DRB095-doall2-taskloop-orig-yes\n"
+        "  ./run --agent claude --reasoning-effort low --case DRB095-doall2-taskloop-orig-yes\n"
         "  ./run                 # select a case interactively"
     )
     parser.formatter_class = argparse.RawDescriptionHelpFormatter
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.reasoning_effort is not None:
+        if not args.reasoning_effort or any(character in args.reasoning_effort for character in "#\r\n"):
+            parser.error("--reasoning-effort/--variant requires a variant name without '#' or newlines")
+    if args.agent == "claude" and args.reasoning_effort is not None:
+        if args.reasoning_effort not in {"max", "xhigh", "high", "medium", "low", "off"}:
+            parser.error("Claude reasoning effort must be max, xhigh, high, medium, low, or off")
+    return args
 
 
 def _select_case_by_name(
@@ -163,35 +171,20 @@ def main():
             f"  Model:  {agent_client.model or '(Claude Code default)'}"
         )
         print(
-            f"  Reasoning effort: {args.reasoning_effort}"
+            f"  Reasoning effort: {agent_client.reasoning_effort}"
         )
     else:
-        # Unset means: use the provider from the user's own OpenCode setup.
-        server_url = os.environ.get("BENCHMARK_LLM_SERVER_URL")
-
-        api_key = os.environ.get("BENCHMARK_LLM_API_KEY")
-
-        model = os.environ.get(
-            "BENCHMARK_LLM_MODEL",
-            "Qwen/Qwen3.8-27B",
+        agent_client = OpenCodeClient(reasoning_effort=args.reasoning_effort)
+        if args.reasoning_effort is not None:
+            print(f"  Variant override: {args.reasoning_effort}")
+        details = agent_client.describe_recent_selection(
+            case.workspace if case is not None else root
         )
-
-        print(
-            f"  Server: {server_url or '(from OpenCode configuration)'}"
-        )
-        print(
-            f"  Model:  {model}"
-        )
-        print(
-            f"  Reasoning effort: {args.reasoning_effort}"
-        )
-
-        agent_client = OpenCodeClient(
-            model=model,
-            server_url=server_url,
-            api_key=api_key,
-            reasoning_effort=args.reasoning_effort,
-        )
+        print(f"  Provider: {details['provider']}")
+        print(f"  Model: {details['model']}")
+        print(f"  Variant: {details['variant']}")
+        print(f"  Server: {details['server']}")
+        print(f"  Credentials: {details['credentials']}")
 
     # ==============================================================
     # Create benchmark runner
