@@ -5,13 +5,14 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 from datetime import datetime
 
 from benchmark.case import BenchmarkCase
 from benchmark.evaluator import BenchmarkEvaluator
 from benchmark.prompt import TaskPromptBuilder
 from discopop.runner import DiscoPoPRunner
+from llm.claude_code import ClaudeCodeClient
 from llm.opencode import OpenCodeClient
 
 
@@ -52,7 +53,7 @@ class BenchmarkRunner:
 
     def __init__(
         self,
-        llm_client: OpenCodeClient,
+        llm_client: Union[OpenCodeClient, ClaudeCodeClient],
         output_root: Path,
     ):
         """
@@ -60,15 +61,15 @@ class BenchmarkRunner:
         ----------
         llm_client:
             Despite the historical variable name, this must be an
-            OpenCodeClient.
+            OpenCodeClient or a ClaudeCodeClient.
 
         output_root:
             Directory in which benchmark results are stored.
         """
 
-        if not isinstance(llm_client, OpenCodeClient):
+        if not isinstance(llm_client, (OpenCodeClient, ClaudeCodeClient)):
             raise TypeError(
-                "BenchmarkRunner requires an OpenCodeClient. "
+                "BenchmarkRunner requires an OpenCodeClient or ClaudeCodeClient. "
                 "Do not pass LLMClient here."
             )
 

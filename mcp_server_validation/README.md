@@ -66,7 +66,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r mcp_server_validation/requirements.txt
 ```
 
-Install OpenCode 1, which provides the `opencode run --format json --auto`
+Install OpenCode 2, which provides the `opencode run --format json --auto`
 interface used by this runner:
 
 ```bash
@@ -74,7 +74,7 @@ npm install -g opencode-ai
 opencode --version
 ```
 
-OpenCode 2 uses a different CLI and is not interchangeable with this runner.
+OpenCode 1 uses a different CLI (`--variant`, `--dir`) and is not supported by this runner.
 The OpenCode project documents the OpenCode 1 installation and command-line
 interface at [its official documentation](https://docs.opencode.ai/docs/).
 
@@ -90,8 +90,15 @@ gcc --version
 
 ## Configure the model endpoint
 
-The benchmark calls an OpenAI-compatible endpoint through OpenCode. Set these
-variables for your own accessible model; they apply to every benchmark mode:
+The benchmark calls an OpenAI-compatible endpoint through OpenCode. If
+`opencode` is already set up (e.g. in `~/.config/opencode/opencode.json`) with
+the provider and model you want, you do not need to set anything: leave
+`BENCHMARK_LLM_SERVER_URL` and `BENCHMARK_LLM_API_KEY` unset and the benchmark
+uses your OpenCode provider as is. `BENCHMARK_LLM_PROVIDER` and
+`BENCHMARK_LLM_MODEL` must then name that provider and model.
+
+Otherwise, set these variables for your own accessible model; they apply to
+every benchmark mode:
 
 ```bash
 export BENCHMARK_LLM_SERVER_URL="https://your-server.example/v1"
@@ -126,6 +133,26 @@ in `benchmark.json` is metadata.
 `./run --case DRB095-doall2-taskloop-orig-yes` is equivalent when the intended virtual
 environment is activated. Without `--case`, the runner opens an interactive task
 selector; choose `all` only after individual tasks work in your environment.
+
+## Choose the coding agent
+
+`--agent opencode` (default) drives `opencode`; `--agent claude` drives the
+Claude Code CLI (`claude -p --output-format stream-json`) instead. Both use your
+own existing, already authenticated setup, and both produce the same result
+files. `BENCHMARK_AGENT` sets the default for a shell session.
+
+```bash
+./run --agent claude --case DRB095-doall2-taskloop-orig-yes
+./run --agent claude --claude-model haiku --case DRB095-doall2-taskloop-orig-yes
+```
+
+For `claude`, the model defaults to your Claude Code default; select another with
+`--claude-model` (an alias such as `sonnet`, `opus` or `haiku`, or a full model
+name), or set `BENCHMARK_CLAUDE_MODEL` for a shell session. The
+`BENCHMARK_LLM_*` variables only apply to OpenCode. The MCP server is passed
+with `--strict-mcp-config`, so your own MCP servers never reach a run, and
+`--reasoning-effort` maps to `--effort` (`off` omits the flag). Claude Code does
+not report reasoning tokens separately, so those are recorded as 0.
 
 ## Control reasoning effort and view commands
 
@@ -259,7 +286,7 @@ observations without a pass/fail threshold.
 
 If a mode fails before the agent runs, check these prerequisites in this order:
 
-1. `opencode` is on `PATH` and is OpenCode 1.
+1. `opencode` is on `PATH` and is OpenCode 2.
 2. The model endpoint, key, model identifier, and provider label are accepted by OpenCode.
 3. `discopop_cc`, `discopop_explorer`, and `discopop_mcp_server` come from the same `.venv` used for the runner.
 4. GCC can compile `-fopenmp -fsanitize=thread` and execute the resulting binary on Linux.
