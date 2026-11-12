@@ -26,7 +26,7 @@ BOOTSTRAP_DRAWS = 2000
 def compile_binary(command: list[str], root: Path) -> None:
     result = subprocess.run(command, cwd=root, capture_output=True, text=True)
     if result.returncode:
-        raise RuntimeError("compilation failed: " + result.stderr[-3000:])
+        raise RuntimeError("compilation failed: " + result.stdout + result.stderr)
 
 
 def build(root: Path, config: dict, directory: Path) -> tuple[Path, Path]:

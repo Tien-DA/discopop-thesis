@@ -285,6 +285,7 @@ class BenchmarkRunner:
             )
 
         print("=" * 110)
+        print('Tokens sum all steps and attempts; input includes cache; output includes reported reasoning.')
 
         return results
 
@@ -647,6 +648,7 @@ class BenchmarkRunner:
             "agent_latency_seconds": agent_latency,
 
             "tokens": {
+                "uncached_input": usage.get("uncached_input_tokens", 0),
                 "input": usage.get(
                     "input_tokens",
                     0,
@@ -779,31 +781,7 @@ class BenchmarkRunner:
 
     @staticmethod
     def _merge_usage(usages: list[dict[str, Any]]) -> dict[str, int]:
-        """Sum invocation usage while retaining the final inference-step size."""
-        keys = (
-            "steps",
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "reasoning_tokens",
-            "cache_read_tokens",
-            "cache_write_tokens",
-        )
-        merged = {key: 0 for key in keys}
-        last_step_keys = tuple("last_step_" + key for key in keys[1:])
-        merged.update({key: 0 for key in last_step_keys})
-        for usage in usages:
-            if not isinstance(usage, dict):
-                continue
-            for key in keys:
-                value = usage.get(key, 0)
-                if isinstance(value, int):
-                    merged[key] += value
-            for key in last_step_keys:
-                value = usage.get(key)
-                if isinstance(value, int):
-                    merged[key] = value
-        return merged
+        return OpenCodeClient._merge_usage(usages)
 
     @staticmethod
     def _merge_mcp_usage(usages: list[dict[str, Any]]) -> dict[str, Any]:
@@ -899,11 +877,12 @@ class BenchmarkRunner:
         if isinstance(workloads, list):
             calibration = report.get("calibration", {})
             print(f"  Primary: performance / Program / 4t vs ref; {report.get('repetitions')} paired rounds.")
+            print("\n  Workloads:")
             for workload in workloads:
                 parameters = workload.get("parameters", {})
                 dimensions = parameters.get("dimensions", parameters)
                 size = ", ".join(f"{key}={value}" for key, value in dimensions.items())
-                print(f"  {workload.get('label')}: {size}; batch={workload.get('batch_invocations')}")
+                print(f"    {workload.get('label')}: {size}; batch={workload.get('batch_invocations')}")
 
             metrics = [(workload.get("label", "workload"), metric)
                        for workload in workloads for metric in workload.get("metrics", [])]
@@ -942,11 +921,12 @@ class BenchmarkRunner:
             time_headers = ["Workload", "Scope", "Ref 1t"]
             if has_reference_four:
                 time_headers.append("Ref 4t")
-            print("  Times (median, ms)")
+            print("\n  Times (median, ms)")
             cls._print_performance_table([*time_headers, "Candidate 1t", "Candidate 4t"], time_rows)
-            print("  Speedups (paired median) [95% confidence interval]")
+            print("\n  Speedups (paired median) [95% confidence interval]")
             cls._print_performance_table(
                 ["Workload", "Scope", "1t vs ref", "4t vs ref", "Scaling 1t -> 4t"], ratio_rows)
+            print()
             for line in reference_scaling:
                 print(line)
             reference = "upstream at matching thread count" if has_reference_four else "serial (1 thread)"
@@ -974,9 +954,12 @@ class BenchmarkRunner:
     def _print_performance_table(headers: list[str], rows: list[list[str]]) -> None:
         widths = [max(len(header), *(len(row[index]) for row in rows))
                   for index, header in enumerate(headers)] if rows else list(map(len, headers))
+        border = "  +" + "+".join("-" * (width + 2) for width in widths) + "+"
+        print(border)
         for index, row in enumerate([headers, *rows]):
-            print("  " + "  ".join(value.ljust(width) if column < 2 or index == 0 else value.rjust(width)
-                                    for column, (value, width) in enumerate(zip(row, widths))).rstrip())
+            print("  | " + " | ".join(value.ljust(width) if column < 2 or index == 0 else value.rjust(width)
+                                      for column, (value, width) in enumerate(zip(row, widths))) + " |")
+            print(border)
 
     @staticmethod
     def _format_speedup(comparison: dict[str, Any]) -> str:

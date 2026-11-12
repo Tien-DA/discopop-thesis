@@ -77,6 +77,7 @@ class BatchBenchmarkRunner:
                     print("  MCP functions: none")
 
         print("-" * 110)
+        print('Tokens sum all steps and attempts; input includes cache; output includes reported reasoning.')
 
     def _print_row(
         self,

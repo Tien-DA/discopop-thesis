@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -134,10 +135,18 @@ class BenchmarkEvaluator:
         command_result = cls._result(result)
 
         if result.returncode != 0:
+            diagnostics = result.stderr.strip() or result.stdout.strip()
+            # A compiler can print its actual error before thousands of warning
+            # lines. Keep complete command output in the result, and select the
+            # errors for the console instead of displaying only the tail.
+            error_lines = [line for line in diagnostics.splitlines() if re.search(
+                r"\b(?:fatal )?error:|undefined reference|cannot find |No such file|"
+                r"command not found|Permission denied|Traceback|timed out|validation timeout", line)]
+            summary = "\n".join(error_lines[:8]) if error_lines else diagnostics[:2000]
             return {
                 "available": False,
                 "error": "performance command failed" + (
-                    ": " + result.stderr.strip()[-2000:] if result.stderr.strip() else ""
+                    ": " + summary if summary else ""
                 ),
                 "command": command_result,
             }

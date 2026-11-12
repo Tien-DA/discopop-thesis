@@ -209,6 +209,16 @@ with `--strict-mcp-config`, so your own MCP servers never reach a run, and
 `--reasoning-effort` maps to `--effort` (`off` omits the flag). Claude Code does
 not report reasoning tokens separately, so those are recorded as 0.
 
+Token columns sum every inference step and remediation attempt. Input includes
+uncached input plus cache reads and writes; output includes reasoning when it
+is reported separately. Cache and reasoning fields are breakdowns of these
+totals. JSON retains uncached_input, cache_read, cache_write, and reasoning.
+Claude's final result usage supplies the main-agent output total because
+assistant-message output counts can be placeholders. Result totals replace
+message estimates rather than being added again. Session-wide modelUsage is
+not added on resumed attempts; subagent usage is outside result usage's scope.
+Existing saved runs are not automatically rewritten.
+
 ## Control reasoning effort and view commands
 
 Use `--help` to show all runner options and examples. It works before the

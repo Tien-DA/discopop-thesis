@@ -107,7 +107,7 @@ def command(args, *, cwd=None, env=None, timeout=TIMEOUT):
                             text=True, timeout=timeout)
     if result.returncode:
         raise RuntimeError(f"command failed ({result.returncode}): {shlex.join(args)}\n"
-                           + result.stderr[-3000:])
+                           + result.stdout + result.stderr)
     return result
 
 
@@ -261,9 +261,20 @@ class Experiment:
         else:
             flags += ["-DMPICH_IGNORE_CXX_SEEK", "-DDEVICE=1", "-DUSE_SIMD", "-DNOCHUNK", "-mavx"]
             src = source / "src"
-            self.compile([*self.compiler, *flags, f"-I{src}",
-                          *[str(src / name) for name in self.config["sources"]],
-                          "-o", str(executable)])
+            objects = []
+            # Match upstream Makefile.default's two-pass build. OMPFORSCHEDULE
+            # expands to a literal #pragma; it becomes a directive only when
+            # the preprocessed .2.cpp is compiled in a second invocation.
+            # Build both sides this way, without modifying either source tree.
+            for index, name in enumerate(self.config["sources"]):
+                preprocessed = directory / f"{index}-{Path(name).stem}.2.cpp"
+                obj = directory / f"{index}-{Path(name).stem}.o"
+                self.compile([*self.compiler, *flags, f"-I{src}", "-E",
+                              str(src / name), "-o", str(preprocessed)])
+                self.compile([*self.compiler, *flags, f"-I{src}", "-c",
+                              str(preprocessed), "-o", str(obj)])
+                objects.append(str(obj))
+            self.compile([*self.compiler, *flags, *objects, "-o", str(executable)])
         self.build_cache[key] = executable
         return executable
 

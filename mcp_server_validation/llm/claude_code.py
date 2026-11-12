@@ -60,6 +60,43 @@ def summarize_mcp_availability(
     }
 
 
+def summarize_claude_usage(
+    steps: dict[str, dict[str, Any]], result_event: dict[str, Any]
+) -> dict[str, int]:
+    """Prefer result totals: assistant output counts can be placeholders.
+
+    Result usage covers this main-agent turn. Session-wide modelUsage may
+    contain earlier turns, so adding it on resumed attempts would double count.
+    """
+    usage = OpenCodeClient._empty_usage()
+    for step in steps.values():
+        raw = step["usage"]
+        uncached = int(raw.get("input_tokens") or 0)
+        output = int(raw.get("output_tokens") or 0)
+        read = int(raw.get("cache_read_input_tokens") or 0)
+        write = int(raw.get("cache_creation_input_tokens") or 0)
+        OpenCodeClient._record_step_usage(
+            usage, uncached, output, uncached + output + read + write, 0, read, write)
+    raw = result_event.get("usage")
+    if isinstance(raw, dict) and any(key in raw for key in (
+        "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"
+    )):
+        uncached = int(raw.get("input_tokens", usage["uncached_input_tokens"]) or 0)
+        output = int(raw.get("output_tokens", usage["output_tokens"]) or 0)
+        read = int(raw.get("cache_read_input_tokens", usage["cache_read_tokens"]) or 0)
+        write = int(raw.get("cache_creation_input_tokens", usage["cache_write_tokens"]) or 0)
+        # Replace message estimates; do not add the result on top of them.
+        usage.update(
+            uncached_input_tokens=uncached,
+            input_tokens=uncached + read + write,
+            output_tokens=output,
+            total_tokens=uncached + read + write + output,
+            cache_read_tokens=read,
+            cache_write_tokens=write,
+        )
+    return usage
+
+
 class ClaudeCodeClient:
     """Client for running Claude Code as the benchmark coding agent."""
 
@@ -268,7 +305,7 @@ class ClaudeCodeClient:
                     steps[message_id] = step
                     print(f"[Claude] Step {len(steps)}")
                 if isinstance(message.get("usage"), dict):
-                    step["usage"] = message["usage"]
+                    step["usage"].update(message["usage"])
 
                 for block in message.get("content") or []:
                     if not isinstance(block, dict):
@@ -296,23 +333,7 @@ class ClaudeCodeClient:
             # TOKEN USAGE
             # ----------------------------------------------------------
 
-            usage = OpenCodeClient._empty_usage()
-
-            for step in steps.values():
-                raw = step["usage"]
-                step_input = int(raw.get("input_tokens") or 0)
-                step_output = int(raw.get("output_tokens") or 0)
-                cache_read = int(raw.get("cache_read_input_tokens") or 0)
-                cache_write = int(raw.get("cache_creation_input_tokens") or 0)
-                OpenCodeClient._record_step_usage(
-                    usage,
-                    step_input,
-                    step_output,
-                    step_input + step_output + cache_read + cache_write,
-                    0,  # Claude Code does not report reasoning tokens separately
-                    cache_read,
-                    cache_write,
-                )
+            usage = summarize_claude_usage(steps, result_event)
 
             # ----------------------------------------------------------
             # SAVE RAW EVENTS

@@ -34,6 +34,15 @@ from benchmark.performance.performance_repair import (
 
 
 class PerformanceRepairTests(unittest.TestCase):
+    def test_performance_error_before_warning_flood_is_preserved(self):
+        diagnostics = "source.cpp:42: error: actual build failure\n" + "warning: ignored return value\n" * 300
+        result = BenchmarkEvaluator._performance_result(
+            subprocess.CompletedProcess(["compiler"], 1, "", diagnostics))
+        self.assertFalse(result["available"])
+        self.assertIn("actual build failure", result["error"])
+        self.assertNotIn("ignored return value", result["error"])
+        self.assertEqual(result["command"]["stderr"], diagnostics)
+
     def test_performance_runs_only_after_correctness(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)

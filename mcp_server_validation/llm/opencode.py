@@ -677,7 +677,9 @@ class OpenCodeClient:
         Return an empty token usage structure.
 
         The cumulative fields sum token usage across all OpenCode
-        inference steps.
+        inference steps. Input includes uncached input and cache reads/writes;
+        output includes reasoning when the provider reports it separately.
+        Cache and reasoning fields are breakdowns, not extra totals.
 
         The last-step fields contain token usage from the final
         step only. This allows us to distinguish cumulative token
@@ -691,6 +693,7 @@ class OpenCodeClient:
 
             "steps": 0,
             "input_tokens": 0,
+            "uncached_input_tokens": 0,
             "output_tokens": 0,
             "total_tokens": 0,
             "reasoning_tokens": 0,
@@ -702,12 +705,42 @@ class OpenCodeClient:
             # ----------------------------------------------------------
 
             "last_step_input_tokens": 0,
+            "last_step_uncached_input_tokens": 0,
             "last_step_output_tokens": 0,
             "last_step_total_tokens": 0,
             "last_step_reasoning_tokens": 0,
             "last_step_cache_read_tokens": 0,
             "last_step_cache_write_tokens": 0,
         }
+
+    @staticmethod
+    def _merge_usage(usages: list[dict[str, Any]]) -> dict[str, int]:
+        """Sum invocation usage while retaining the final inference-step size."""
+        keys = (
+            "steps",
+            "input_tokens",
+            "uncached_input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "reasoning_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+        )
+        merged = {key: 0 for key in keys}
+        last_step_keys = tuple("last_step_" + key for key in keys[1:])
+        merged.update({key: 0 for key in last_step_keys})
+        for usage in usages:
+            if not isinstance(usage, dict):
+                continue
+            for key in keys:
+                value = usage.get(key, 0)
+                if isinstance(value, int):
+                    merged[key] += value
+            for key in last_step_keys:
+                value = usage.get(key)
+                if isinstance(value, int):
+                    merged[key] = value
+        return merged
 
     @staticmethod
     def _record_step_usage(
@@ -719,17 +752,21 @@ class OpenCodeClient:
         step_cache_read: int,
         step_cache_write: int,
     ) -> int:
-        """Add one inference step to a usage bucket."""
+        """Add a step; cache is part of input and separate reasoning is output."""
+        full_input = step_input + step_cache_read + step_cache_write
+        full_output = step_output + step_reasoning
         usage["steps"] += 1
-        usage["input_tokens"] += step_input
-        usage["output_tokens"] += step_output
-        usage["total_tokens"] += step_total
+        usage["uncached_input_tokens"] += step_input
+        usage["input_tokens"] += full_input
+        usage["output_tokens"] += full_output
+        usage["total_tokens"] += step_total or full_input + full_output
         usage["reasoning_tokens"] += step_reasoning
         usage["cache_read_tokens"] += step_cache_read
         usage["cache_write_tokens"] += step_cache_write
-        usage["last_step_input_tokens"] = step_input
-        usage["last_step_output_tokens"] = step_output
-        usage["last_step_total_tokens"] = step_total
+        usage["last_step_uncached_input_tokens"] = step_input
+        usage["last_step_input_tokens"] = full_input
+        usage["last_step_output_tokens"] = full_output
+        usage["last_step_total_tokens"] = step_total or full_input + full_output
         usage["last_step_reasoning_tokens"] = step_reasoning
         usage["last_step_cache_read_tokens"] = step_cache_read
         usage["last_step_cache_write_tokens"] = step_cache_write
