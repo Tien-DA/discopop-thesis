@@ -1,0 +1,32 @@
+{
+  "kind": "polybench",
+  "source": "seidel-2d.c",
+  "header": "seidel-2d.h",
+  "small_workload": {
+    "dimensions": {
+      "TSTEPS": 10,
+      "N": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "TSTEPS": 20,
+        "N": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 40,
+        "N": 2000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 80,
+        "N": 4000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

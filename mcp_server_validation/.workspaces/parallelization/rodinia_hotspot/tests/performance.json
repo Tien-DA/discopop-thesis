@@ -1,0 +1,20 @@
+{
+  "kind": "hotspot",
+  "small_workload": {
+    "iterations": 2
+  },
+  "calibration_workloads": [
+    {
+      "iterations": 16
+    },
+    {
+      "iterations": 64
+    },
+    {
+      "iterations": 256
+    },
+    {
+      "iterations": 1024
+    }
+  ]
+}

@@ -29,7 +29,6 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -164,7 +163,7 @@ class LocalMCPServer:
         if not self.tool_directory.is_dir():
             return tool_names
 
-        for path in self.tool_directory.glob("*.py"):
+        for path in self.tool_directory.rglob("*.py"):
 
             if path.name.startswith("test_"):
                 continue
@@ -367,7 +366,7 @@ class OpenCodeClient:
         """
 
         repo_root = (
-            Path(__file__).resolve().parents[1]
+            Path(__file__).resolve().parents[2]
         )
 
         return LocalMCPServer(
@@ -999,8 +998,6 @@ class OpenCodeClient:
             # START OPENCODE
             # ----------------------------------------------------------
 
-            invocation_start_time = time.perf_counter()
-
             process = subprocess.Popen(
                 command,
                 cwd=workspace,
@@ -1029,18 +1026,6 @@ class OpenCodeClient:
             usage = (
                 self._empty_usage()
             )
-
-            warm_usage = (
-                self._empty_usage()
-                if mcp_enabled
-                else None
-            )
-
-            step_records: list[
-                tuple[tuple[int, int, int, int, int, int], bool, bool, float]
-            ] = []
-            setup_seen_in_step = False
-            task_mcp_seen_in_step = False
 
             raw_events: list[
                 dict[str, Any]
@@ -1086,26 +1071,6 @@ class OpenCodeClient:
                 event_type = event.get(
                     "type"
                 )
-
-                if event_type == "tool_use" and mcp_enabled:
-                    part = event.get("part", {})
-                    if isinstance(part, dict):
-                        tool_name = str(part.get("tool", ""))
-                        normalized_name = tool_name.lower()
-                        is_mcp_tool = (
-                            tool_name in self.mcp_tool_names
-                            or "discopop" in normalized_name
-                            or "mcp" in normalized_name
-                        )
-                        setup_tools = ("prepare_project_analysis",)
-                        is_setup_tool = tool_name in setup_tools or tool_name.endswith(
-                            tuple(f"_{tool}" for tool in setup_tools)
-                        )
-                        if is_mcp_tool:
-                            if is_setup_tool:
-                                setup_seen_in_step = True
-                            else:
-                                task_mcp_seen_in_step = True
 
                 # ======================================================
                 # TEXT EVENT
@@ -1251,24 +1216,6 @@ class OpenCodeClient:
                         step_cache_write,
                     )
 
-                    step_records.append(
-                        (
-                            (
-                                step_input,
-                                step_output,
-                                step_total,
-                                step_reasoning,
-                                step_cache_read,
-                                step_cache_write,
-                            ),
-                            setup_seen_in_step,
-                            task_mcp_seen_in_step,
-                            time.perf_counter(),
-                        )
-                    )
-                    setup_seen_in_step = False
-                    task_mcp_seen_in_step = False
-
                     # --------------------------------------------------
                     # DEBUG: print per-step token usage
                     # --------------------------------------------------
@@ -1299,29 +1246,6 @@ class OpenCodeClient:
             stderr_thread.join()
             stdout = "".join(stdout_lines)
             stderr = "".join(stderr_lines)
-
-            warm_start_index = 0
-            warm_start_time = invocation_start_time
-            setup_used = False
-            task_mcp_used = False
-            for index, (_, contains_setup, contains_task_mcp, step_time) in enumerate(step_records):
-                if contains_setup:
-                    setup_used = True
-                    warm_start_index = index + 1
-                    warm_start_time = step_time
-                if contains_task_mcp:
-                    task_mcp_used = True
-
-            warm_started = mcp_enabled and setup_used and task_mcp_used
-            if warm_started and warm_usage is not None:
-                for step_usage, _, _, _ in step_records[warm_start_index:]:
-                    self._record_step_usage(warm_usage, *step_usage)
-
-            warm_latency_seconds = (
-                time.perf_counter() - warm_start_time
-                if warm_started
-                else None
-            )
 
             # ----------------------------------------------------------
             # SAVE RAW EVENTS
@@ -1397,15 +1321,7 @@ class OpenCodeClient:
                     f"{usage_summary['last_step_total_tokens']:,}"
                 )
 
-            if mcp_enabled:
-                print_usage_summary("Cold usage (end-to-end):", usage)
-
-            else:
-                print_usage_summary("Usage:", usage)
-
-            if warm_started and warm_usage is not None:
-                print()
-                print_usage_summary("Warm usage (after MCP setup):", warm_usage)
+            print_usage_summary("Usage:", usage)
 
             print(
                 f"MCP used:       "
@@ -1451,12 +1367,6 @@ class OpenCodeClient:
                 ),
 
                 "usage": usage,
-
-                "warm_usage": (
-                    warm_usage if warm_started else None
-                ),
-
-                "warm_latency_seconds": warm_latency_seconds,
 
                 "mcp_enabled": (
                     mcp_enabled

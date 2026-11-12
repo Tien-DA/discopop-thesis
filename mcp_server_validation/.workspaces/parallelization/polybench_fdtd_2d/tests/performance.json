@@ -1,0 +1,29 @@
+{
+  "kind": "polybench",
+  "source": "fdtd-2d.c",
+  "header": "fdtd-2d.h",
+  "small_workload": {
+    "dimensions": {
+      "TMAX": 10,
+      "NX": 500,
+      "NY": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "TMAX": 20,
+        "NX": 1000,
+        "NY": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "TMAX": 40,
+        "NX": 2000,
+        "NY": 2000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

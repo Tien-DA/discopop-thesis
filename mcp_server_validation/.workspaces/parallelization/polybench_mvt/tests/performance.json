@@ -1,0 +1,28 @@
+{
+  "kind": "polybench",
+  "source": "mvt.c",
+  "header": "mvt.h",
+  "small_workload": {
+    "dimensions": {
+      "N": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "N": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "N": 2000
+      }
+    },
+    {
+      "dimensions": {
+        "N": 4000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

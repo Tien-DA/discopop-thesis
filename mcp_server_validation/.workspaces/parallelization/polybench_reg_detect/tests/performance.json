@@ -1,0 +1,43 @@
+{
+  "kind": "polybench",
+  "source": "reg_detect.c",
+  "header": "reg_detect.h",
+  "small_workload": {
+    "dimensions": {
+      "NITER": 100,
+      "LENGTH": 50,
+      "MAXGRID": 6
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NITER": 200,
+        "LENGTH": 100,
+        "MAXGRID": 12
+      }
+    },
+    {
+      "dimensions": {
+        "NITER": 400,
+        "LENGTH": 200,
+        "MAXGRID": 24
+      }
+    },
+    {
+      "dimensions": {
+        "NITER": 800,
+        "LENGTH": 400,
+        "MAXGRID": 48
+      }
+    },
+    {
+      "dimensions": {
+        "NITER": 1600,
+        "LENGTH": 800,
+        "MAXGRID": 96
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

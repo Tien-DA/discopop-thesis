@@ -1,0 +1,22 @@
+{
+  "kind": "polybench",
+  "source": "fdtd-apml.c",
+  "header": "fdtd-apml.h",
+  "small_workload": {
+    "dimensions": {
+      "CZ": 64,
+      "CYM": 64,
+      "CXM": 64
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "CZ": 128,
+        "CYM": 128,
+        "CXM": 128
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

@@ -60,25 +60,14 @@ class BatchBenchmarkRunner:
             tokens = result.get("tokens", {})
             accuracy = self._accuracy(result)
 
-            if mode == "mcp":
-                print("mcp")
-                self._print_row(
-                    "  mcp (cold)",
-                    tokens,
-                    accuracy,
-                    result.get("latency_seconds"),
-                    self.runner._performance_status(result),
-                )
-                warm = tokens.get("warm", {})
-                if warm:
-                    self._print_row(
-                        "  mcp (warm)",
-                        warm,
-                        accuracy,
-                        warm.get("latency_seconds"),
-                        "",
-                    )
-
+            self._print_row(
+                mode,
+                tokens,
+                accuracy,
+                result.get("latency_seconds"),
+                self.runner._performance_status(result),
+            )
+            if mode in self.runner.MCP_MODES:
                 tools = result.get("mcp", {}).get("tools", {})
                 if tools:
                     print("  MCP functions:")
@@ -86,14 +75,6 @@ class BatchBenchmarkRunner:
                         print(f"    {tool_name}: {count}")
                 else:
                     print("  MCP functions: none")
-            else:
-                self._print_row(
-                    mode,
-                    tokens,
-                    accuracy,
-                    result.get("latency_seconds"),
-                    self.runner._performance_status(result),
-                )
 
         print("-" * 110)
 
@@ -129,12 +110,7 @@ class BatchBenchmarkRunner:
         )
 
         for mode in self.runner.MODES:
-            if mode == "mcp":
-                print("mcp")
-                self._print_average_row("  mcp (cold)", all_results, mode)
-                self._print_average_row("  mcp (warm)", all_results, mode, warm=True)
-            else:
-                self._print_average_row(mode, all_results, mode)
+            self._print_average_row(mode, all_results, mode)
 
         print("=" * 100)
 
@@ -143,7 +119,6 @@ class BatchBenchmarkRunner:
         label: str,
         all_results: list[tuple[BenchmarkCase, dict[str, Any]]],
         mode: str,
-        warm: bool = False,
     ) -> None:
         values: list[tuple[dict[str, Any], dict[str, Any]]] = []
         successes = 0
@@ -151,9 +126,6 @@ class BatchBenchmarkRunner:
         for _, results in all_results:
             result = results.get(mode, {})
             tokens = result.get("tokens", {})
-            if warm:
-                tokens = tokens.get("warm", {})
-
             if not tokens:
                 continue
 
@@ -168,9 +140,8 @@ class BatchBenchmarkRunner:
         avg_input = sum(item[0].get("input", 0) for item in values) / count
         avg_output = sum(item[0].get("output", 0) for item in values) / count
         avg_total = sum(item[0].get("total", 0) for item in values) / count
-        latency_key = "latency_seconds"
         latencies = [
-            item[0].get(latency_key) if warm else item[1].get(latency_key)
+            item[1].get("latency_seconds")
             for item in values
         ]
         valid_latencies = [value for value in latencies if isinstance(value, (int, float))]

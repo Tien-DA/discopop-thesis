@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from benchmark.case import BenchmarkCase
 from benchmark.evaluator import BenchmarkEvaluator
-from benchmark.performance_repair import (
+from benchmark.performance.performance_repair import (
     MIN_PERFORMANCE_RATIO, bootstrap_interval, performance_point,
 )
 
@@ -38,7 +38,9 @@ class PerformanceRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
             command = (
-                "touch performance_ran; "
+                'test -f "$BENCHMARK_PERFORMANCE_TOOL" && '
+                'test -f "$BENCHMARK_PARALLEL_PERFORMANCE_TOOL" && '
+                "touch performance_ran && "
                 "printf '%s' '{\"schema_version\":1,\"status\":\"pass\","
                 "\"performance_point\":1,\"comparisons\":[]}'"
             )
@@ -312,7 +314,7 @@ class ReferenceDiagnosticTests(unittest.TestCase):
         self.assertIn("archer_setup_failed", diagnose_reference(entry))
 
     def test_archer_helper_rejects_gcc_before_running_oracles(self):
-        helper = Path(__file__).resolve().parents[1] / "benchmark/archer.sh"
+        helper = Path(__file__).resolve().parents[1] / "benchmark/validation/archer.sh"
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
             fake_cc = workspace / "fake-gcc"
@@ -456,7 +458,7 @@ class ReferencePreparationTests(unittest.TestCase):
                             (task / name).read_bytes(), (workspace / name).read_bytes()
                         )
                     self.assertEqual(
-                        (Path(__file__).resolve().parents[1] / "benchmark/archer.sh").read_bytes(),
+                        (Path(__file__).resolve().parents[1] / "benchmark/validation/archer.sh").read_bytes(),
                         (workspace / "tests/archer.sh").read_bytes(),
                     )
                     self.assertFalse((workspace / "tests/archer.sh").is_symlink())
@@ -478,7 +480,7 @@ class ReferencePreparationTests(unittest.TestCase):
 class ArcherSetupTests(unittest.TestCase):
     def test_helper_requires_activation_and_race_detection(self):
         # Exercise shell orchestration without pretending to run LLVM on macOS.
-        helper = Path(__file__).resolve().parents[1] / "benchmark/archer.sh"
+        helper = Path(__file__).resolve().parents[1] / "benchmark/validation/archer.sh"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             archer = root / "libarcher.so"

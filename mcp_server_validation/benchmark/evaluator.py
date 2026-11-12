@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark.case import BenchmarkCase
+from benchmark.validation.parallel_validation import positive_timeout, run_bounded
 
 
 class BenchmarkEvaluator:
@@ -71,7 +72,10 @@ class BenchmarkEvaluator:
                     if reference_workspace
                     else "",
                     "BENCHMARK_PERFORMANCE_TOOL": str(
-                        Path(__file__).with_name("performance_repair.py").resolve()
+                        (Path(__file__).parent / "performance/performance_repair.py").resolve()
+                    ),
+                    "BENCHMARK_PARALLEL_PERFORMANCE_TOOL": str(
+                        (Path(__file__).parent / "performance/performance_parallel.py").resolve()
                     ),
                 },
             )
@@ -103,15 +107,11 @@ class BenchmarkEvaluator:
         if environment:
             env.update(environment)
 
-        return subprocess.run(
-            command,
+        return run_bounded(
+            ["/bin/bash", "-c", command],
             cwd=workspace,
-            shell=True,
-            executable="/bin/bash",
-            capture_output=True,
-            text=True,
-            errors="replace",
             env=env,
+            timeout=positive_timeout("BENCHMARK_COMMAND_TIMEOUT", 900),
         )
 
     @staticmethod
@@ -136,7 +136,9 @@ class BenchmarkEvaluator:
         if result.returncode != 0:
             return {
                 "available": False,
-                "error": "performance command failed",
+                "error": "performance command failed" + (
+                    ": " + result.stderr.strip()[-2000:] if result.stderr.strip() else ""
+                ),
                 "command": command_result,
             }
 

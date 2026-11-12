@@ -1,0 +1,48 @@
+{
+  "kind": "polybench",
+  "source": "2mm.c",
+  "header": "2mm.h",
+  "small_workload": {
+    "dimensions": {
+      "NI": 128,
+      "NJ": 128,
+      "NK": 128,
+      "NL": 128
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NI": 256,
+        "NJ": 256,
+        "NK": 256,
+        "NL": 256
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 512,
+        "NJ": 512,
+        "NK": 512,
+        "NL": 512
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 1024,
+        "NJ": 1024,
+        "NK": 1024,
+        "NL": 1024
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 2048,
+        "NJ": 2048,
+        "NK": 2048,
+        "NL": 2048
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

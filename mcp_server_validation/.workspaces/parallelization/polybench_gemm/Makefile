@@ -1,7 +1,7 @@
 .PHONY: all test clean
 
 CC ?= cc
-CFLAGS ?= -O3 -std=c11 -fopenmp -DMEDIUM_DATASET
+CFLAGS ?= -O3 -std=c11 -D_POSIX_C_SOURCE=200112L -fopenmp -DMEDIUM_DATASET
 
 all: build/gemm
 

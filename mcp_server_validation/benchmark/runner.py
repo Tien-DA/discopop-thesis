@@ -37,15 +37,20 @@ class BenchmarkRunner:
             DiscoPoP MCP server is enabled.
             OpenCode is responsible for initializing, building,
             profiling and querying DiscoPoP through MCP.
+
+        FORCE_MCP
+            Same runtime as MCP, with a mandatory MCP workflow in the prompt.
     """
 
     MODES = (
         "direct",
         "full_discopop",
         "mcp",
+        "force_mcp",
     )
+    MCP_MODES = ("mcp", "force_mcp")
 
-    # The first agent turn is deliberately autonomous.  A coding agent can still
+    # The agent follows the selected condition's prompt. A coding agent can still
     # stop after making an edit that fails the final, external evaluation, though.
     # Give it the evaluator's concrete compiler/test diagnostics and a bounded
     # opportunity to repair its own work before recording the mode as failed.
@@ -269,14 +274,8 @@ class BenchmarkRunner:
             # Print row
             # ----------------------------------------------------------
 
-            display_mode = "mcp" if mode == "mcp" else mode
-
-            if mode == "mcp":
-                print(f"{display_mode:<20}")
-                display_mode = "  mcp (cold)"
-
             print(
-                f"{display_mode:<20}"
+                f"{mode:<20}"
                 f"{input_tokens:>15,}"
                 f"{output_tokens:>15,}"
                 f"{total_tokens:>15,}"
@@ -284,26 +283,6 @@ class BenchmarkRunner:
                 f"{latency_text:>12}"
                 f"{performance_text:>20}"
             )
-
-            if mode == "mcp":
-                warm_tokens = tokens.get("warm", {})
-                if warm_tokens:
-                    warm_latency = warm_tokens.get("latency_seconds")
-                    warm_latency_text = (
-                        f"{warm_latency:.3f}s"
-                        if isinstance(warm_latency, (int, float))
-                        else "N/A"
-                    )
-
-                    print(
-                        f"{'  mcp (warm)':<20}"
-                        f"{warm_tokens.get('input', 0):>15,}"
-                        f"{warm_tokens.get('output', 0):>15,}"
-                        f"{warm_tokens.get('total', 0):>15,}"
-                        f"{accuracy:>12}"
-                        f"{warm_latency_text:>12}"
-                        f"{'':>20}"
-                    )
 
         print("=" * 110)
 
@@ -363,9 +342,9 @@ class BenchmarkRunner:
         # FULL_DISCOPOP:
         #     Run DiscoPoP and expose generated analysis to OpenCode.
         #
-        # MCP:
+        # MCP / FORCE_MCP:
         #     Do not prepare or run DiscoPoP in advance. The agent may use the
-        #     enabled MCP server if it judges that its analysis is useful.
+        #     enabled MCP server according to the condition's prompt.
         # --------------------------------------------------------------
 
         discopop_result = None
@@ -413,11 +392,11 @@ class BenchmarkRunner:
                     "discopop": discopop_result,
                 }
 
-        elif mode == "mcp":
+        elif mode in self.MCP_MODES:
 
             print()
             print(
-                "[Benchmark] DiscoPoP MCP tools are available to OpenCode."
+                "[Benchmark] DiscoPoP MCP is configured; agent startup reports availability."
             )
         # --------------------------------------------------------------
         # 3. Build prompt
@@ -447,13 +426,14 @@ class BenchmarkRunner:
         # DIRECT          -> False
         # FULL_DISCOPOP   -> False
         # MCP             -> True
+        # FORCE_MCP       -> True
         #
-        # This guarantees that only the MCP benchmark condition has
+        # This guarantees that only the MCP benchmark conditions have
         # access to the DiscoPoP MCP server.
         # --------------------------------------------------------------
 
         mcp_enabled = (
-            mode == "mcp"
+            mode in self.MCP_MODES
         )
 
         print()
@@ -473,7 +453,7 @@ class BenchmarkRunner:
 
         print()
         print(
-            "[Benchmark] Starting OpenCode..."
+            "[Benchmark] Starting Agent..."
         )
 
         session_started = time.perf_counter()
@@ -645,11 +625,6 @@ class BenchmarkRunner:
             [attempt["llm_result"].get("mcp_usage", {}) for attempt in attempts]
         )
 
-        warm_usage, warm_latency = self._merge_session_warm_usage(
-            attempts=attempts,
-            mcp_enabled=mcp_enabled,
-        )
-
         # --------------------------------------------------------------
         # 9. Build final result
         # --------------------------------------------------------------
@@ -696,33 +671,15 @@ class BenchmarkRunner:
                     "cache_write_tokens",
                     0,
                 ),
-
-                "warm": (
-                    {
-                        "steps": warm_usage.get("steps", 0),
-                        "input": warm_usage.get("input_tokens", 0),
-                        "output": warm_usage.get("output_tokens", 0),
-                        "total": warm_usage.get("total_tokens", 0),
-                        "last_step": {
-                            "input": warm_usage.get(
-                                "last_step_input_tokens", 0
-                            ),
-                            "output": warm_usage.get(
-                                "last_step_output_tokens", 0
-                            ),
-                            "total": warm_usage.get(
-                                "last_step_total_tokens", 0
-                            ),
-                        },
-                        "latency_seconds": warm_latency,
-                    }
-                    if isinstance(warm_usage, dict)
-                    else {}
-                ),
             },
 
             "mcp": {
                 "enabled": mcp_enabled,
+                "availability_by_invocation": [
+                    attempt["llm_result"]["mcp_availability"]
+                    for attempt in attempts
+                    if "mcp_availability" in attempt["llm_result"]
+                ],
 
                 "used": mcp_usage.get(
                     "used",
@@ -821,57 +778,6 @@ class BenchmarkRunner:
         return result
 
     @staticmethod
-    def _result_warm_latency(llm_result: dict[str, Any]) -> float:
-        value = llm_result.get("warm_latency_seconds")
-        return float(value) if isinstance(value, (int, float)) else 0.0
-
-    @classmethod
-    def _merge_session_warm_usage(
-        cls,
-        attempts: list[dict[str, Any]],
-        mcp_enabled: bool,
-    ) -> tuple[dict[str, int] | None, float]:
-        """Aggregate usage after MCP setup across a continued OpenCode session.
-
-        ``OpenCodeClient.run`` can identify the exact step after setup only in
-        the invocation that performs setup.  A continuation has no setup event,
-        so it does not return ``warm_usage`` even though it resumes the already
-        warm OpenCode session.  Once the first warm segment is found, every
-        following agent invocation belongs to the warm measurement.
-        """
-        if not mcp_enabled:
-            return None, 0.0
-
-        warm_usages: list[dict[str, Any]] = []
-        warm_latency = 0.0
-        session_is_warm = False
-
-        for attempt in attempts:
-            llm_result = attempt.get("llm_result", {})
-            if not isinstance(llm_result, dict):
-                continue
-
-            invocation_warm_usage = llm_result.get("warm_usage")
-            if not session_is_warm and isinstance(invocation_warm_usage, dict):
-                warm_usages.append(invocation_warm_usage)
-                warm_latency += cls._result_warm_latency(llm_result)
-                session_is_warm = True
-            elif session_is_warm:
-                # This invocation is a continuation of the warm session.  Its
-                # entire usage occurred after the initial MCP setup boundary.
-                usage = llm_result.get("usage")
-                if isinstance(usage, dict):
-                    warm_usages.append(usage)
-                    latency = attempt.get("latency_seconds")
-                    if isinstance(latency, (int, float)):
-                        warm_latency += float(latency)
-
-        return (
-            cls._merge_usage(warm_usages) if warm_usages else None,
-            warm_latency,
-        )
-
-    @staticmethod
     def _merge_usage(usages: list[dict[str, Any]]) -> dict[str, int]:
         """Sum invocation usage while retaining the final inference-step size."""
         keys = (
@@ -949,6 +855,13 @@ class BenchmarkRunner:
                 return f"{label} {ratio:.2f}x"
             return label
         comparisons = report.get("comparisons")
+        if report.get("methodology") == "paired_rounds_v1" and isinstance(comparisons, list) and len(comparisons) >= 2:
+            comparison = comparisons[1]  # Candidate 4 workers against its reference.
+            ratio = comparison.get("ratio")
+            evidence = comparison.get("evidence")
+            label = {"above_one": "faster", "below_one": "slower"}.get(evidence, "uncertain")
+            if isinstance(ratio, (int, float)):
+                return f"{ratio:.2f}x ({label})"
         if isinstance(comparisons, list):
             return f"{len(comparisons)} comparison(s)"
         return "available"
@@ -982,6 +895,105 @@ class BenchmarkRunner:
                 f"95% interval={report.get('confidence_interval_95')})"
             )
 
+        workloads = report.get("workloads")
+        if isinstance(workloads, list):
+            calibration = report.get("calibration", {})
+            print(f"  Primary: performance / Program / 4t vs ref; {report.get('repetitions')} paired rounds.")
+            for workload in workloads:
+                parameters = workload.get("parameters", {})
+                dimensions = parameters.get("dimensions", parameters)
+                size = ", ".join(f"{key}={value}" for key, value in dimensions.items())
+                print(f"  {workload.get('label')}: {size}; batch={workload.get('batch_invocations')}")
+
+            metrics = [(workload.get("label", "workload"), metric)
+                       for workload in workloads for metric in workload.get("metrics", [])]
+            has_reference_four = any(
+                measurement.get("workers") == 4 and "reference" in measurement.get("label", "")
+                for _, metric in metrics for measurement in metric.get("measurements", []))
+            time_rows, ratio_rows, reference_scaling = [], [], []
+            for label, metric in metrics:
+                scope = {"end_to_end_wall_time_seconds": "Program", "kernel_wall_time_seconds": "Kernel"}.get(
+                    metric.get("metric"), metric.get("metric", "unspecified"))
+                measurements = metric.get("measurements", [])
+
+                def milliseconds(candidate, workers):
+                    value = next((item.get("median") for item in measurements
+                                  if item.get("workers") == workers and
+                                  (item.get("label") == "candidate" if candidate else
+                                   "reference" in item.get("label", ""))), None)
+                    return f"{value * 1000:.3f}" if isinstance(value, (int, float)) else "-"
+
+                row = [label, scope, milliseconds(False, 1)]
+                if has_reference_four:
+                    row.append(milliseconds(False, 4))
+                time_rows.append([*row, milliseconds(True, 1), milliseconds(True, 4)])
+                comparisons = {item.get("label"): item for item in metric.get("comparisons", [])}
+                one = comparisons.get("candidate_1_worker_vs_serial_reference",
+                                      comparisons.get("candidate_vs_reference_1_worker", {}))
+                four = comparisons.get("candidate_4_workers_vs_serial_reference",
+                                       comparisons.get("candidate_vs_reference_4_workers", {}))
+                scaling = comparisons.get("candidate_scaling_1_to_4_workers", {})
+                ratio_rows.append([label, scope, *[cls._format_speedup(item) for item in (one, four, scaling)]])
+                if "reference_scaling_1_to_4_workers" in comparisons:
+                    reference_scaling.append(
+                        f"  Reference scaling {label}/{scope}, 1t -> 4t: "
+                        + cls._format_speedup(comparisons["reference_scaling_1_to_4_workers"]))
+
+            time_headers = ["Workload", "Scope", "Ref 1t"]
+            if has_reference_four:
+                time_headers.append("Ref 4t")
+            print("  Times (median, ms)")
+            cls._print_performance_table([*time_headers, "Candidate 1t", "Candidate 4t"], time_rows)
+            print("  Speedups (paired median) [95% confidence interval]")
+            cls._print_performance_table(
+                ["Workload", "Scope", "1t vs ref", "4t vs ref", "Scaling 1t -> 4t"], ratio_rows)
+            for line in reference_scaling:
+                print(line)
+            reference = "upstream at matching thread count" if has_reference_four else "serial (1 thread)"
+            print(f"  t = threads; ref = {reference}; >1 is better; ? = inconclusive.")
+            if not calibration.get("target_reached", True):
+                print("  Note: performance workload hit its size cap before the calibration time target.")
+            probe = report.get("runtime_probe_threads", {})
+            if probe and probe != {"1": 1, "4": 4}:
+                print(f"  Runtime probe: {probe}")
+            details = result.get("files", {}).get("evaluation")
+            if details:
+                path = Path(details)
+                try:
+                    path = path.relative_to(Path.cwd())
+                except ValueError:
+                    pass
+                print(f"  Full precision, samples and build details: {path}")
+            else:
+                print("  Full precision, samples and build details are saved in evaluation.json.")
+            return
+
+        cls._print_performance_metric(report)
+
+    @staticmethod
+    def _print_performance_table(headers: list[str], rows: list[list[str]]) -> None:
+        widths = [max(len(header), *(len(row[index]) for row in rows))
+                  for index, header in enumerate(headers)] if rows else list(map(len, headers))
+        for index, row in enumerate([headers, *rows]):
+            print("  " + "  ".join(value.ljust(width) if column < 2 or index == 0 else value.rjust(width)
+                                    for column, (value, width) in enumerate(zip(row, widths))).rstrip())
+
+    @staticmethod
+    def _format_speedup(comparison: dict[str, Any]) -> str:
+        ratio = comparison.get("ratio")
+        if not isinstance(ratio, (int, float)):
+            return "-"
+        interval = comparison.get("confidence_interval_95")
+        uncertain = comparison.get("evidence") == "inconclusive"
+        if isinstance(interval, list) and len(interval) == 2:
+            uncertain = uncertain or interval[0] <= 1 <= interval[1]
+            bounds = f" [{interval[0]:.3f},{interval[1]:.3f}]"
+        else:
+            bounds = ""
+        return f"{ratio:.3f}{'?' if uncertain else ''}{bounds}"
+
+    @staticmethod
+    def _print_performance_metric(report: dict[str, Any]) -> None:
         metric = report.get("metric")
         unit = report.get("unit")
         if metric or unit:
@@ -995,12 +1007,12 @@ class BenchmarkRunner:
                 label = measurement.get("label", "unnamed measurement")
                 median = measurement.get("median")
                 workers = measurement.get("workers")
-                samples = measurement.get("samples")
-                detail = f"median={median}"
+                if isinstance(median, (int, float)) and unit == "seconds":
+                    detail = f"median={median * 1000:.6g} ms"
+                else:
+                    detail = f"median={median}"
                 if workers is not None:
                     detail += f", workers={workers}"
-                if isinstance(samples, list):
-                    detail += f", samples={samples}"
                 print(f"  Measurement {label}: {detail}")
 
         comparisons = report.get("comparisons")
@@ -1009,9 +1021,8 @@ class BenchmarkRunner:
                 if not isinstance(comparison, dict):
                     continue
                 label = comparison.get("label", "unnamed comparison")
-                ratio = comparison.get("ratio")
                 direction = comparison.get("direction", "unspecified direction")
-                print(f"  Comparison {label}: ratio={ratio} ({direction})")
+                print(f"  Comparison {label}: {BenchmarkRunner._format_speedup(comparison)} ({direction})")
 
     @staticmethod
     def _build_remediation_prompt(
@@ -1109,6 +1120,11 @@ unavailable to you. Make the smallest necessary source change, then run
 
         if mode == "mcp":
             return self.prompts.build_mcp(
+                case
+            )
+
+        if mode == "force_mcp":
+            return self.prompts.build_force_mcp(
                 case
             )
 

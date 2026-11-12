@@ -1,0 +1,38 @@
+{
+  "kind": "polybench",
+  "source": "syr2k.c",
+  "header": "syr2k.h",
+  "small_workload": {
+    "dimensions": {
+      "NI": 128,
+      "NJ": 128
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NI": 256,
+        "NJ": 256
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 512,
+        "NJ": 512
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 1024,
+        "NJ": 1024
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 2048,
+        "NJ": 2048
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

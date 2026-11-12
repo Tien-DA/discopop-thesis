@@ -99,3 +99,19 @@ The DiscoPoP MCP server is enabled. Use its tools when they are useful to
 understand, repair, or validate the task. Decide independently whether to use
 them, which tools to use, and how much analysis the task needs.
 """
+
+    def build_force_mcp(
+        self,
+        case: BenchmarkCase,
+    ) -> str:
+        common = self._build_common(case)
+
+        return common + """
+BENCHMARK CONDITION:
+You are working in the FORCE_MCP condition.
+The DiscoPoP MCP server is enabled. You must use its tools to solve this task.
+First, call the appropriate MCP tools to set up DiscoPoP and generate analysis
+for this workspace. Then, make an effort to use the remaining MCP tools to
+complete the task, guided by their descriptions and the evidence they return.
+Choose the tools and subsequent steps that fit the task.
+"""

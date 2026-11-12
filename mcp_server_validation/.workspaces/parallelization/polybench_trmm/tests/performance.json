@@ -1,0 +1,33 @@
+{
+  "kind": "polybench",
+  "source": "trmm.c",
+  "header": "trmm.h",
+  "small_workload": {
+    "dimensions": {
+      "NI": 128
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NI": 256
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 512
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 1024
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 2048
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

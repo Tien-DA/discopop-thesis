@@ -1,0 +1,26 @@
+{
+  "kind": "polybench",
+  "source": "dynprog.c",
+  "header": "dynprog.h",
+  "small_workload": {
+    "dimensions": {
+      "TSTEPS": 100,
+      "LENGTH": 50
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "TSTEPS": 200,
+        "LENGTH": 100
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 400,
+        "LENGTH": 200
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

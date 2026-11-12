@@ -1,7 +1,7 @@
 # Benchmark tasks
 
 The benchmark currently contains 47 tasks. Each task runs in `direct`,
-`full_discopop`, and `mcp` modes. Correctness tasks require a race-free,
+`full_discopop`, `mcp`, and `force_mcp` modes. Correctness tasks require a race-free,
 functionally correct repair that preserves OpenMP parallel work. Performance
 tasks also record task-specific runtime measurements. The 15 race-repair tasks
 award a separate performance point after the correctness oracle passes; see

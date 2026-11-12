@@ -1,1 +1,1 @@
-../../../../benchmark/archer.sh
+../../../../benchmark/validation/archer.sh

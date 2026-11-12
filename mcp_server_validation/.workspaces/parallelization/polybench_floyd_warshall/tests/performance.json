@@ -1,0 +1,33 @@
+{
+  "kind": "polybench",
+  "source": "floyd-warshall.c",
+  "header": "floyd-warshall.h",
+  "small_workload": {
+    "dimensions": {
+      "N": 128
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "N": 256
+      }
+    },
+    {
+      "dimensions": {
+        "N": 512
+      }
+    },
+    {
+      "dimensions": {
+        "N": 1024
+      }
+    },
+    {
+      "dimensions": {
+        "N": 2048
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

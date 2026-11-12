@@ -3,7 +3,12 @@
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from llm.claude_code import summarize_mcp_availability
 
 
 def short_path(path: str) -> str:
@@ -93,7 +98,7 @@ def print_step(step_no, texts, tools):
         if not text:
             continue
 
-        print("-----QWEN-----")
+        print("-----AGENT-----")
 
         for line in clean_text(text, max_lines=30, max_chars=2500).splitlines():
             print(f"{line}")
@@ -129,6 +134,9 @@ def parse_events(path):
 
 
 def build_steps(events):
+    if any(event.get("type") == "assistant" for event in events):
+        return build_claude_steps(events)
+
     steps = []
     current = None
 
@@ -168,9 +176,47 @@ def build_steps(events):
     return steps
 
 
+def build_claude_steps(events):
+    steps = {}
+    tool_results = {}
+    seen_tools = set()
+    for event in events:
+        message = event.get("message") or {}
+        if not isinstance(message, dict):
+            continue
+        if event.get("type") == "user":
+            for block in message.get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tool_results[block.get("tool_use_id")] = block.get("content")
+        if event.get("type") != "assistant":
+            continue
+        step = steps.setdefault(message.get("id") or f"anonymous_{len(steps)}", {
+            "texts": [], "tools": [],
+        })
+        for block in message.get("content") or []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text" and block.get("text"):
+                step["texts"].append(block["text"])
+            elif block.get("type") == "tool_use":
+                tool_id = block.get("id")
+                if tool_id and tool_id in seen_tools:
+                    continue
+                if tool_id:
+                    seen_tools.add(tool_id)
+                step["tools"].append({
+                    "id": tool_id, "name": block.get("name", "unknown"),
+                    "input": block.get("input"), "output": None,
+                })
+    for step in steps.values():
+        for tool in step["tools"]:
+            tool["output"] = tool_results.get(tool["id"])
+    return list(steps.values())
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Human-readable OpenCode agent transcript"
+        description="Human-readable OpenCode or Claude Code agent transcript"
     )
 
     parser.add_argument(
@@ -202,15 +248,26 @@ def main():
 
     events = parse_events(args.file)
     steps = build_steps(events)
+    is_claude = any(event.get("type") == "assistant" for event in events)
 
     end = args.end or len(steps)
 
     print()
     print("═" * 78)
-    print(" OPENCode AGENT TRANSCRIPT")
+    print(f" {'Claude Code' if is_claude else 'OpenCode'} AGENT TRANSCRIPT")
     print("═" * 78)
     print(f"File : {args.file}")
     print(f"Steps: {len(steps)}")
+    if is_claude:
+        init = next((event for event in events if event.get("type") == "system"
+                     and event.get("subtype") == "init"), {})
+        calls = sum(tool["name"].startswith("mcp__discopop_mcp_server__")
+                    for step in steps for tool in step["tools"])
+        print("DiscoPoP MCP (assuming MCP condition):")
+        print(json.dumps(summarize_mcp_availability(
+            init, "discopop_mcp_server", True, calls
+        ), indent=2))
+        print(f"DiscoPoP MCP calls: {calls}")
     print("═" * 78)
 
     for i, step in enumerate(steps, 1):

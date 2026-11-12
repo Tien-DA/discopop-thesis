@@ -1,0 +1,38 @@
+{
+  "kind": "polybench",
+  "source": "jacobi-1d-imper.c",
+  "header": "jacobi-1d-imper.h",
+  "small_workload": {
+    "dimensions": {
+      "TSTEPS": 10,
+      "N": 1000
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "TSTEPS": 20,
+        "N": 2000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 40,
+        "N": 4000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 80,
+        "N": 8000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 160,
+        "N": 16000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

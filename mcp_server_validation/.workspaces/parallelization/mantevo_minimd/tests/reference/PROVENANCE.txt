@@ -1,0 +1,4 @@
+Frozen miniMD baseline from repository commit 15957fb052c0fcf300ac02df855b6cb1daeda1cb.
+Source: mcp_server_validation/.workspaces/parallelization/mantevo_minimd/src/
+C++ sources, headers, build recipe, LJ input and upstream license/readme
+are copied verbatim from that commit. Do not regenerate from candidates.

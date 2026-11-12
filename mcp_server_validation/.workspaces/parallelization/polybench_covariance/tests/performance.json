@@ -1,0 +1,32 @@
+{
+  "kind": "polybench",
+  "source": "covariance.c",
+  "header": "covariance.h",
+  "small_workload": {
+    "dimensions": {
+      "N": 500,
+      "M": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "N": 1000,
+        "M": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "N": 2000,
+        "M": 2000
+      }
+    },
+    {
+      "dimensions": {
+        "N": 4000,
+        "M": 4000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

@@ -1,0 +1,26 @@
+{
+  "kind": "polybench",
+  "source": "adi.c",
+  "header": "adi.h",
+  "small_workload": {
+    "dimensions": {
+      "TSTEPS": 10,
+      "N": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "TSTEPS": 20,
+        "N": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "TSTEPS": 40,
+        "N": 2000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

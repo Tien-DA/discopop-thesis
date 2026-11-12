@@ -1,0 +1,32 @@
+{
+  "kind": "polybench",
+  "source": "bicg.c",
+  "header": "bicg.h",
+  "small_workload": {
+    "dimensions": {
+      "NX": 500,
+      "NY": 500
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NX": 1000,
+        "NY": 1000
+      }
+    },
+    {
+      "dimensions": {
+        "NX": 2000,
+        "NY": 2000
+      }
+    },
+    {
+      "dimensions": {
+        "NX": 4000,
+        "NY": 4000
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

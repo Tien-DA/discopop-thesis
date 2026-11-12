@@ -1,13 +1,23 @@
 # DiscoPoP MCP benchmark
 
 This directory benchmarks an OpenCode coding agent on the same OpenMP-repair
-task in three conditions:
+task in four conditions:
 
 | Mode | What the agent can use |
 | --- | --- |
 | `direct` | Source tree and normal shell tools. |
 | `full_discopop` | Source tree plus DiscoPoP analysis generated before the agent starts. |
 | `mcp` | Source tree plus the enabled DiscoPoP MCP server; the agent may use it when useful. |
+| `force_mcp` | Same MCP runtime, with required DiscoPoP setup and analysis, followed by encouraged use of the remaining tools. |
+
+`mcp` measures voluntary tool adoption. `force_mcp` changes only the prompt's
+`BENCHMARK CONDITION`: it requires MCP tools to set up DiscoPoP and generate
+analysis, then asks the agent to make an effort to use the remaining tools to
+complete the task. Tool selection and subsequent steps follow tool descriptions
+and returned evidence, without prescribing tool names. Server configuration, workspace isolation, evaluation,
+token accounting, and timing are identical. The runner does not execute tools
+on the agent's behalf or add a separate compliance gate to the correctness score;
+tool calls and their results remain visible in the recorded events.
 
 The runner keeps the agent workspace and evaluator workspace separate. Files in a
 task's lowercase `tests/` directory are copied only into the evaluator workspace,
@@ -65,7 +75,7 @@ OmpSCR vector on stderr. TSan uses `ignore_noninstrumented_modules=1` as
 with `halt_on_error=1` and `exitcode=66`. The oracle sets its analysis options
 explicitly rather than inheriting suppressions or disabled analysis.
 
-The shared `benchmark/archer.sh` is linked from each hidden `tests/archer.sh`.
+The shared `benchmark/validation/archer.sh` is linked from each hidden `tests/archer.sh`.
 Workspace copying dereferences the links, so detached evaluation workspaces
 contain a standalone copy. Original candidate/reference output checks remain
 in each task's `test_race.sh` for tasks without `expected.out`. For the five
@@ -152,7 +162,7 @@ under OpenCode's control.
 
 The benchmark prints the selected agent, requested variant, and OpenCode's most
 recently selected provider, model, and variant once at the start. It reads that
-selection from OpenCode's model state once and uses it for all three modes. The
+selection from OpenCode's model state once and uses it for all four modes. The
 printed provider, model, and variant come from that saved selection, except when
 `--reasoning-effort` or `--variant` explicitly overrides the variant. It asks OpenCode for the
 selected provider's endpoint when available, and leaves credentials under
@@ -256,11 +266,21 @@ runs/<timestamp>_openmp_correctness_repair_DRB095-doall2-taskloop-orig-yes/
   direct/{workspace,evaluation_workspace,evaluation.json,events.jsonl,patch.diff,result.json}
   full_discopop/{...}
   mcp/{...}
+  force_mcp/{...}
 ```
 
-Read `result.json` for the three-mode summary. `evaluation.json` contains the
+Read `result.json` for the four-mode summary. `evaluation.json` contains the
 compiler/test outcome, `patch.diff` is the source change proposed by the agent,
 and `events.jsonl` records OpenCode events used to count tokens and MCP calls.
+
+Each MCP condition has one result row, `mcp` or `force_mcp`, in individual and
+batch summaries. Its
+token totals include every agent step, including initial DiscoPoP setup and
+analysis tool calls. `agent_latency_seconds` includes all agent invocations
+and their tool execution; `latency_seconds` (the summary's Latency column)
+also includes the evaluator runs between invocation start and final evaluation.
+Setup costs are not subtracted. Results do not contain separate cold/warm
+measurements or `warm_usage`, `warm_latency_seconds`, or `tokens.warm` fields.
 
 ## Performance measurements
 
@@ -273,19 +293,18 @@ or an unavailable measurement without treating it as a failed repair.
 The command must write one JSON object to standard output with
 `"schema_version": 1`. The runner stores the object in both
 `evaluation.json` and the mode's `result.json`, and prints its measurements and
-comparisons. Task scripts own the workload, trusted reference implementation,
-and any ratios because those choices are task-specific. The shared runner only
-transports and displays the report, so future task families can use the same
-interface.
+comparisons. Hidden task specifications select workloads and trusted references;
+the shared evaluator tools perform the measurements. The runner transports and
+displays the versioned report, so future task families can use the same interface.
 
-The following shape is recommended:
+The basic report shape is:
 
 ```json
 {
   "schema_version": 1,
   "metric": "wall_time_seconds",
   "unit": "seconds",
-  "repetitions": 5,
+  "repetitions": 3,
   "measurements": [
     {"label": "reference", "workers": 4, "samples": [1.02, 1.00, 1.01], "median": 1.01},
     {"label": "candidate", "workers": 4, "samples": [0.82, 0.81, 0.83], "median": 0.82}
@@ -307,6 +326,161 @@ copy of the original task source. It is never copied into the agent workspace.
 A task may use this workspace as an upstream baseline, or keep a task-specific
 correct reference under its hidden `tests/` directory. Performance scripts must
 write only the JSON report to stdout; diagnostic output belongs on stderr.
+
+### Parallelization tasks: controlled paired measurements
+
+All 32 parallelization tasks delegate to `benchmark/performance/performance_parallel.py`
+through `BENCHMARK_PARALLEL_PERFORMANCE_TOOL`, set by the evaluator. Their hidden
+`tests/performance.json` specifies sources and bounded workload candidates.
+The evaluator freshly compiles candidate and reference with the same compiler
+and `-O3`/OpenMP flags, bypassing candidate Makefiles, environment `CFLAGS`, and
+previous build artifacts. miniMD uses `MPICXX` (default `mpicxx`) and a fixed source
+list and compile flags. Source/header changes needed by the task are retained;
+PolyBench's support code, dimension header, and instrumentation come from the
+hidden reference. Actual compiler version, build commands, and workload dimensions
+are recorded in JSON.
+
+Each task measures two workloads: the original small configuration and a larger
+reference-calibrated configuration. Calibration tries a bounded list until the
+reference kernel (PolyBench) or process (other programs) reaches approximately
+100 ms. If it cannot reach the target within that list, the report explicitly
+flags `target_reached: false`. PolyBench candidates in the list have an estimated
+array-memory cap of 256 MiB; this is not an OS memory limit. The first successful
+calibration writes `parallel_performance_plan.json` beside the mode directories,
+and all four modes reuse that exact workload. Delete the complete run directory
+when starting a fresh experiment on another machine or toolchain.
+
+Before timing each workload, candidate output with 1 and 4 workers is compared
+against the reference at that workload. PolyBench streams the real formatted array
+dump from stderr through Python SHA-256 and checks its byte count in separate
+validation binaries. This does not intercept `fprintf`, so glibc fortified stdio
+can operate normally. The dump is buffered and never retained in full in memory.
+Hotspot compares output
+file SHA-256 hashes; miniMD compares thermodynamic values with the existing
+`1e-7` tolerance. This supplements the task's original correctness gate. A failure
+makes the performance report unavailable, without rewriting correctness PASS.
+
+Every configuration gets two untimed process warmups. Fifteen paired rounds
+follow; each round runs every configuration in seeded randomized order. A round
+averages up to 20 separate invocations, calibrated from reference process latency
+toward 100 ms. Each speedup is the **median of per-round paired ratios**, with a
+95% percentile-bootstrap interval (2,000 resamples of paired rounds). This can
+differ from dividing the displayed measurement medians. `above_one`, `below_one`,
+or `inconclusive` indicates where the interval lies relative to 1; it is not a
+separate performance score. Intervals describe within-run sampling uncertainty,
+not all bias or variation between machines and complete benchmark sessions.
+
+The three original comparisons remain: candidate 1 worker versus serial,
+candidate 4 workers versus serial, and candidate scaling from 1 to 4 workers.
+miniMD retains its four comparisons against its already-parallel upstream code.
+All tasks report `end_to_end_wall_time_seconds`, including process launch and
+OpenMP/MPI startup. PolyBench additionally reports `kernel_wall_time_seconds`
+using an evaluator-owned `CLOCK_MONOTONIC` timer around its instrumentation region,
+with cache flushing disabled. Warmups do not preserve an OpenMP team between
+process launches. miniMD and Hotspot have no trusted kernel timer in this harness;
+their application-reported times are not presented as kernel measurements.
+
+`workloads[].metrics[]` contains both workload reports and their raw samples.
+The top-level metric/measurements/comparisons mirror the larger workload's
+end-to-end report for existing consumers. The console displays two compact tables:
+median times in milliseconds and paired speedups with 95% intervals, for every
+workload and metric. `Program` means the complete process; `Kernel` means only
+the timed computational region. `t` means threads; `?` marks an interval containing
+1 (inconclusive), even when rounded bounds appear equal to 1. The headline is the
+performance workload's Program speedup at 4 threads versus its reference. Runtime
+probe details are shown only when unexpected; calibration warnings remain visible.
+Full-precision values, raw samples, round order, and build metadata remain in
+`evaluation.json` and `result.json`; terminal formatting does not change scoring.
+
+The runtime fixes `OMP_DYNAMIC=FALSE`, worker limits, `OMP_PLACES=cores`, and
+`OMP_PROC_BIND=close`, and verifies that a separate OpenMP probe can create 1 and
+4 threads. This probe does not prove how many threads execute a candidate kernel.
+miniMD also confirms the thread count in its output. On Linux, when `taskset` is
+available, processes use the same four allowed CPUs, preferring distinct physical
+cores when Linux topology information permits; the CPU set is recorded.
+Open MPI's default per-rank core binding is disabled to permit OpenMP
+workers. CPU frequency, thermal state, SMT, system load, and launcher overhead
+remain environmental factors: use a quiet dedicated host and repeat complete runs
+before comparing modes. The procedure follows the warmup/repetition principles in
+[Google Benchmark](https://google.github.io/benchmark/user_guide.html) and noise
+controls discussed by [LLVM](https://llvm.org/docs/Benchmarking.html).
+
+### Self-checking parallelization correctness oracles
+
+`tests/test_parallel_validation.py` exercises the existing task oracles in
+temporary workspaces. It covers all 30 PolyBench kernels, Rodinia Hotspot, and
+miniMD, without an agent, DiscoPoP, or performance timing. The single file contains
+the shared runner and family-specific controls; it does not modify task oracles,
+inputs, or reference fixtures.
+
+The 32 task entry points share `benchmark/validation/parallel_validation.py` through
+task-local `tests/parallel_validation.py` symlinks. Hidden-test workspace copies
+dereference these links, so each evaluation gets a standalone, evaluator-owned
+helper. Preserve the links or copy their target when transferring tasks.
+
+Each PolyBench task has an explicit dependency-aware OpenMP control derived from
+the hidden serial reference. Hotspot parallelizes independent grid chunks;
+miniMD uses the pristine upstream application as its positive control. After
+acceptance, the suite checks serial candidates, consistently wrong numerical
+output, errors restricted to four threads, missing output, compilation failure,
+and runtime failure. PolyBench and Hotspot also reject unused and called empty
+parallel regions, disabled regions (`if(0)`), and single-thread regions.
+miniMD additionally checks wrong thread reporting and
+non-finite thermodynamic values. Numerical mutation is intentional and isolated
+to temporary candidates; a positive control is not a performance recommendation.
+Numerical rejection must reach the oracle's output comparison; a compilation
+error in a numerical control is a self-test failure, not a successful rejection.
+The full native integration suite can take several minutes.
+
+```bash
+python3 -B tests/test_parallel_validation.py -v
+# Select one family or one kernel:
+python3 -B tests/test_parallel_validation.py PolyBenchValidationTests -v
+python3 -B tests/test_parallel_validation.py HotspotValidationTests -v
+python3 -B tests/test_parallel_validation.py MiniMDValidationTests -v
+python3 -B tests/test_parallel_validation.py PolyBenchValidationTests.test_polybench_gesummv -v
+# Run the oracle-gap regressions separately:
+python3 -B tests/test_parallel_validation.py OracleGapTests -v
+# Portable infrastructure checks, without native compilation or MPI:
+python3 -B tests/test_parallel_validation.py OracleSupportTests -v
+```
+
+`OracleGapTests` retains regressions for previously identified gaps: unused
+OpenMP regions outside the kernel, miniMD results that are wrong identically at
+both thread counts, and a hanging PolyBench candidate. The hanging control uses
+a one-second execution limit, separate build limits, and a larger outer watchdog;
+it must return the oracle's timeout status (124), not exhaust the self-test limit.
+
+Each oracle first checks the unmodified candidate output at one and four workers
+against its trusted reference. miniMD builds its frozen reference in a temporary
+directory; `tests/reference/PROVENANCE.txt` identifies the baseline commit.
+Thermodynamic comparisons require timesteps 0 and 10 and all four named fields,
+finite values, and `abs(candidate-reference) <= 1e-7 + 1e-7 * abs(reference)`.
+
+A separate diagnostic build records distinct OpenMP team workers executing
+nonempty innermost loops in `kernel_*` functions (PolyBench), `single_iteration`
+(Hotspot), and Lennard-Jones force computation functions (miniMD). At least one
+loop site must be executed by multiple workers in active parallel teams; the
+diagnostic output must also match the reference. Enclosing nests remain intact
+for `collapse(n)`. This uses compiler/OpenMP facilities already required by the
+tasks, without an OMPT dependency or a speedup threshold. Unsupported source
+syntax fails explicitly. The instrumentation is designed for the benchmark's
+loop-based kernels, not arbitrary C/C++ rewrites or adversarial code. It does not
+prove race freedom, useful speedup, or correctness beyond the checked inputs and
+formatted-output precision.
+
+Execution limits default to 30 seconds per invocation and 240 seconds per build;
+override them with `PARALLEL_VALIDATION_TIMEOUT` and
+`PARALLEL_VALIDATION_BUILD_TIMEOUT`. The evaluator also bounds each shell command
+to 900 seconds (`BENCHMARK_COMMAND_TIMEOUT`). Timeout handling terminates process
+groups, allows a short cleanup grace period for nested oracles, then escalates
+to SIGKILL. All limits must be finite and positive.
+
+Linux is recommended for complete coverage. Missing OpenMP/MPI toolchains are
+reported as SKIP. miniMD requires `mpicxx` and a working `mpirun`. Failures include the
+task/control name and captured output. All temporary build/run files are removed.
+
+### Correctness-repair tasks: reference preservation
 
 All 15 race-repair tasks now use a hidden `tests/performance.json` specification
 and the shared performance test. It runs only after the correctness oracle
@@ -337,8 +511,8 @@ These race-repair programs include very small
 Their score measures complete process latency, including OpenMP startup and
 process overhead; it does not isolate kernel throughput or prove scaling.
 An inconclusive result should be rerun on a quieter dedicated Linux host.
-The included GEMM and miniMD tasks continue to report raw performance
-observations without a pass/fail threshold.
+The parallelization tasks report performance observations and uncertainty
+without a pass/fail threshold.
 
 If a mode fails before the agent runs, check these prerequisites in this order:
 
@@ -350,3 +524,42 @@ If a mode fails before the agent runs, check these prerequisites in this order:
 
 `runs/`, `build/`, `.discopop/`, and temporary `opencode.json` files are generated
 artifacts and are intentionally ignored by Git.
+
+### Claude finishes without MCP calls
+
+`MCP enabled: True` means the runner configured a server; it does not prove
+that Claude connected to it. Interactive Claude may also use a different MCP
+configuration: the benchmark uses `--strict-mcp-config` and starts its own
+stdio server using `DISCOPOP_MCP_COMMAND`, `DISCOPOP_MCP_SERVER`, `PATH`, the
+runner's Python environment, or the source fallback, in that order.
+
+The Claude client prints the server's initial status, advertised DiscoPoP
+tools, tool-call names, and a final diagnosis. Each `llm_result.json` stores
+`mcp_availability`; the mode result stores these reports under
+`mcp.availability_by_invocation`:
+
+- `available_but_not_called`: init reported connected and advertised DiscoPoP
+  tools, but no MCP call was observed. The prompt deliberately leaves tool
+  use optional; inspect the transcript to understand the agent's approach.
+- `server_unavailable_at_init`: init reported failed, needs-auth, or disabled.
+  Check the selected executable/environment and captured stderr.
+- `availability_unconfirmed`: init was missing, the server was pending or
+  unreported, or no DiscoPoP tools were advertised. This is inconclusive,
+  because connections and deferred discovery can complete after init.
+- `tool_calls_observed`: MCP tool-use events were recorded. This does not
+  establish that the tools themselves succeeded; inspect their results.
+
+The [Claude MCP documentation](https://code.claude.com/docs/en/agent-sdk/mcp)
+describes init status, tool discovery, and connection timing. These reports
+do not force calls or change the benchmark's correctness score. A passing
+task with an unavailable server should not be interpreted as a successful
+test of MCP's benefit.
+
+The transcript viewer also supports existing Claude logs (no model call):
+
+```bash
+python3 tools/inspect_events.py runs/<run>/mcp/events.jsonl
+```
+
+It prints the init-based MCP diagnosis, assistant text, tool inputs, and
+tool results. Its MCP diagnosis assumes the log is from the MCP condition.

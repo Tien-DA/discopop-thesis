@@ -1,0 +1,43 @@
+{
+  "kind": "polybench",
+  "source": "gemm.c",
+  "header": "gemm.h",
+  "small_workload": {
+    "dimensions": {
+      "NI": 60,
+      "NJ": 70,
+      "NK": 80
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NI": 120,
+        "NJ": 140,
+        "NK": 160
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 240,
+        "NJ": 280,
+        "NK": 320
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 480,
+        "NJ": 560,
+        "NK": 640
+      }
+    },
+    {
+      "dimensions": {
+        "NI": 960,
+        "NJ": 1120,
+        "NK": 1280
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}

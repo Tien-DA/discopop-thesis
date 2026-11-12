@@ -1,0 +1,31 @@
+{
+  "kind": "minimd",
+  "sources": [
+    "ljs.cpp",
+    "input.cpp",
+    "integrate.cpp",
+    "atom.cpp",
+    "force_lj.cpp",
+    "neighbor.cpp",
+    "thermo.cpp",
+    "comm.cpp",
+    "timer.cpp",
+    "output.cpp",
+    "setup.cpp",
+    "force_eam.cpp"
+  ],
+  "small_workload": {
+    "iterations": 10
+  },
+  "calibration_workloads": [
+    {
+      "iterations": 100
+    },
+    {
+      "iterations": 400
+    },
+    {
+      "iterations": 1600
+    }
+  ]
+}

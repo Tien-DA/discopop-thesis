@@ -16,7 +16,6 @@ import os
 import shlex
 import subprocess
 import threading
-import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -24,13 +23,48 @@ from typing import Any, Optional
 from llm.opencode import LocalMCPServer, OpenCodeClient
 
 
+def summarize_mcp_availability(
+    init_event: dict[str, Any], server_name: str, enabled: bool, tool_calls: int
+) -> dict[str, Any]:
+    """Separate configured MCP from evidence of availability in Claude's init.
+
+    Pending servers and deferred tool discovery are inconclusive: init is a
+    startup snapshot, not a final connection-status query.
+    """
+    server = next(
+        (item for item in init_event.get("mcp_servers", [])
+         if isinstance(item, dict) and item.get("name") == server_name),
+        {},
+    )
+    prefix = f"mcp__{server_name}__"
+    advertised_tools = sorted(
+        name for name in init_event.get("tools", [])
+        if isinstance(name, str) and name.startswith(prefix)
+    )
+    status = server.get("status", "not_reported")
+    if not enabled:
+        diagnosis = "disabled"
+    elif tool_calls:
+        diagnosis = "tool_calls_observed"
+    elif status in {"failed", "needs-auth", "disabled"}:
+        diagnosis = "server_unavailable_at_init"
+    elif status == "connected" and advertised_tools:
+        diagnosis = "available_but_not_called"
+    else:
+        diagnosis = "availability_unconfirmed"
+    return {
+        "server": server_name,
+        "initial_status": status,
+        "advertised_tools": advertised_tools,
+        "diagnosis": diagnosis,
+    }
+
+
 class ClaudeCodeClient:
     """Client for running Claude Code as the benchmark coding agent."""
 
     # Claude Code effort levels; "off" omits the flag.
     EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
-
-    SETUP_TOOLS = ("prepare_project_analysis",)
 
     def __init__(
         self,
@@ -95,9 +129,6 @@ class ClaudeCodeClient:
             or tool_name.startswith("mcp__")
         )
 
-    def _is_setup_tool(self, tool_name: str) -> bool:
-        return any(tool_name.endswith(tool) for tool in self.SETUP_TOOLS)
-
     # ------------------------------------------------------------------
     # RUN CLAUDE CODE
     # ------------------------------------------------------------------
@@ -155,8 +186,6 @@ class ClaudeCodeClient:
         print(" ".join(shlex.quote(part) for part in command))
 
         try:
-            start_time = time.perf_counter()
-
             process = subprocess.Popen(
                 command,
                 cwd=workspace,
@@ -183,6 +212,8 @@ class ClaudeCodeClient:
             mcp_counts: dict[str, int] = {}
             returned_session_id: Optional[str] = None
             result_event: dict[str, Any] = {}
+            init_event: dict[str, Any] = {}
+            seen_tool_ids: set[str] = set()
 
             # One assistant message (= one inference step) may be streamed as
             # several events with the same id; keep one record per id.
@@ -210,6 +241,15 @@ class ClaudeCodeClient:
 
                 event_type = event.get("type")
 
+                if event_type == "system" and event.get("subtype") == "init":
+                    init_event = event
+                    availability = summarize_mcp_availability(
+                        init_event, self.mcp_server.name, mcp_enabled, 0
+                    )
+                    print(f"[Claude] MCP initial status: {availability['initial_status']}")
+                    print(f"[Claude] MCP advertised tools: {len(availability['advertised_tools'])}")
+                    continue
+
                 if event_type == "result":
                     result_event = event
                     continue
@@ -224,12 +264,11 @@ class ClaudeCodeClient:
                 message_id = str(message.get("id") or f"anonymous_{len(steps)}")
                 step = steps.get(message_id)
                 if step is None:
-                    step = {"usage": {}, "setup": False, "task_mcp": False, "time": 0.0}
+                    step = {"usage": {}}
                     steps[message_id] = step
                     print(f"[Claude] Step {len(steps)}")
                 if isinstance(message.get("usage"), dict):
                     step["usage"] = message["usage"]
-                step["time"] = time.perf_counter()
 
                 for block in message.get("content") or []:
                     if not isinstance(block, dict):
@@ -238,13 +277,15 @@ class ClaudeCodeClient:
                         output_text.append(block["text"])
                     elif block.get("type") == "tool_use":
                         tool_name = str(block.get("name", ""))
+                        tool_id = block.get("id")
+                        if isinstance(tool_id, str):
+                            if tool_id in seen_tool_ids:
+                                continue
+                            seen_tool_ids.add(tool_id)
+                        print(f"[Claude] Tool: {tool_name}")
                         if not self._is_mcp_tool(tool_name):
                             continue
                         mcp_counts[tool_name] = mcp_counts.get(tool_name, 0) + 1
-                        if self._is_setup_tool(tool_name):
-                            step["setup"] = True
-                        else:
-                            step["task_mcp"] = True
 
             returncode = process.wait()
             stderr_thread.join()
@@ -256,51 +297,22 @@ class ClaudeCodeClient:
             # ----------------------------------------------------------
 
             usage = OpenCodeClient._empty_usage()
-            warm_usage = OpenCodeClient._empty_usage() if mcp_enabled else None
 
-            step_list = list(steps.values())
-            step_usages: list[tuple[int, int, int, int, int, int]] = []
-            for step in step_list:
+            for step in steps.values():
                 raw = step["usage"]
                 step_input = int(raw.get("input_tokens") or 0)
                 step_output = int(raw.get("output_tokens") or 0)
                 cache_read = int(raw.get("cache_read_input_tokens") or 0)
                 cache_write = int(raw.get("cache_creation_input_tokens") or 0)
-                step_usages.append(
-                    (
-                        step_input,
-                        step_output,
-                        step_input + step_output + cache_read + cache_write,
-                        0,  # Claude Code does not report reasoning tokens separately
-                        cache_read,
-                        cache_write,
-                    )
+                OpenCodeClient._record_step_usage(
+                    usage,
+                    step_input,
+                    step_output,
+                    step_input + step_output + cache_read + cache_write,
+                    0,  # Claude Code does not report reasoning tokens separately
+                    cache_read,
+                    cache_write,
                 )
-            for step_usage in step_usages:
-                OpenCodeClient._record_step_usage(usage, *step_usage)
-
-            # ----------------------------------------------------------
-            # WARM USAGE (after the MCP setup step)
-            # ----------------------------------------------------------
-
-            warm_start_index = 0
-            warm_start_time = start_time
-            setup_used = False
-            task_mcp_used = False
-            for index, step in enumerate(step_list):
-                if step["setup"]:
-                    setup_used = True
-                    warm_start_index = index + 1
-                    warm_start_time = step["time"]
-                if step["task_mcp"]:
-                    task_mcp_used = True
-
-            warm_started = mcp_enabled and setup_used and task_mcp_used
-            if warm_started and warm_usage is not None:
-                for step_usage in step_usages[warm_start_index:]:
-                    OpenCodeClient._record_step_usage(warm_usage, *step_usage)
-
-            warm_latency_seconds = time.perf_counter() - warm_start_time if warm_started else None
 
             # ----------------------------------------------------------
             # SAVE RAW EVENTS
@@ -326,6 +338,9 @@ class ClaudeCodeClient:
                 "tool_calls": sum(mcp_counts.values()),
                 "tools": dict(sorted(mcp_counts.items())),
             }
+            mcp_availability = summarize_mcp_availability(
+                init_event, self.mcp_server.name, mcp_enabled, mcp_usage["tool_calls"]
+            )
 
             print()
             print("Claude Code finished.")
@@ -335,6 +350,8 @@ class ClaudeCodeClient:
             print(f"Total tokens:   {usage['total_tokens']:,}")
             print(f"MCP used:       {mcp_usage['used']}")
             print(f"MCP calls:      {mcp_usage['tool_calls']}")
+            if mcp_enabled:
+                print(f"MCP diagnosis:  {mcp_availability['diagnosis']}")
             for tool_name, count in mcp_usage["tools"].items():
                 print(f"  {tool_name}: {count}")
 
@@ -343,10 +360,9 @@ class ClaudeCodeClient:
                 "stderr": stderr,
                 "returncode": returncode,
                 "usage": usage,
-                "warm_usage": warm_usage if warm_started else None,
-                "warm_latency_seconds": warm_latency_seconds,
                 "mcp_enabled": mcp_enabled,
                 "mcp_usage": mcp_usage,
+                "mcp_availability": mcp_availability,
                 "invocation_id": invocation_id,
                 "session_id": returned_session_id or session_id,
                 "events_file": str(events_file) if events_file is not None else None,

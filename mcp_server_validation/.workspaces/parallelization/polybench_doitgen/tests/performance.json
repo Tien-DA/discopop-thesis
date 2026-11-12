@@ -1,0 +1,29 @@
+{
+  "kind": "polybench",
+  "source": "doitgen.c",
+  "header": "doitgen.h",
+  "small_workload": {
+    "dimensions": {
+      "NQ": 32,
+      "NR": 32,
+      "NP": 32
+    }
+  },
+  "calibration_workloads": [
+    {
+      "dimensions": {
+        "NQ": 64,
+        "NR": 64,
+        "NP": 64
+      }
+    },
+    {
+      "dimensions": {
+        "NQ": 128,
+        "NR": 128,
+        "NP": 128
+      }
+    }
+  ],
+  "estimated_memory_cap_bytes": 268435456
+}
