@@ -1,5 +1,8 @@
-CC ?= gcc
-CFLAGS ?= -std=c11 -O0 -g -fopenmp
+ifeq ($(origin CC), default)
+CC := clang
+endif
+CC ?= clang
+CFLAGS ?= -std=c11 -O0 -g -fopenmp=libomp
 SOURCE := src/DRB095-doall2-taskloop-orig-yes.c
 REFERENCE := tests/reference/DRB096-doall2-taskloop-collapse-orig-no.c
 

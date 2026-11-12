@@ -1,11 +1,13 @@
 # Benchmark tasks
 
-The benchmark currently contains 17 tasks. Each task runs in `direct`,
+The benchmark currently contains 47 tasks. Each task runs in `direct`,
 `full_discopop`, and `mcp` modes. Correctness tasks require a race-free,
 functionally correct repair that preserves OpenMP parallel work. Performance
 tasks also record task-specific runtime measurements. The 15 race-repair tasks
 award a separate performance point after the correctness oracle passes; see
 [README.md](README.md#performance-measurements) for the paired-reference policy.
+The 15 repair oracles use Clang/libomp with Archer and ThreadSanitizer;
+each oracle verifies the toolchain with correct and deliberately racy probes.
 
 ## OpenMP correctness repair
 
@@ -36,10 +38,19 @@ award a separate performance point after the correctness oracle passes; see
 
 ## OpenMP parallelization
 
+The 30 new tasks below use serial source as the editable starting point. Validation
+compares complete output against a hidden upstream reference with one and four
+OpenMP workers and requires an OpenMP parallel directive. These tasks intentionally
+fail the parallel-directive check before an agent edits them.
+
 | Task ID in `benchmark.json` | Program |
 | --- | --- |
 | `mantevo_minimd_openmp_optimization` | Mantevo miniMD; preserve MPI + OpenMP behavior and improve shared-memory execution. |
 | `polybench_gemm_openmp` | PolyBench/C GEMM; parallelize the compute kernel while preserving the exact result. |
+
+Additional tasks: 29 PolyBench/C 3.2 kernels (`polybench_*`, excluding GEMM) and
+Rodinia 3.1 `rodinia_hotspot_openmp`. All 30 include source, input, hidden
+reference, build, correctness test, and performance measurement.
 
 Task definitions and their build, test, profiling, and optional performance
 commands are in `.workspaces/**/benchmark.json`. See [README.md](README.md)

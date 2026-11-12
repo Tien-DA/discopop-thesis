@@ -1,5 +1,8 @@
-CC ?= gcc
-CFLAGS ?= -std=c11 -O0 -g -fopenmp
+ifeq ($(origin CC), default)
+CC := clang
+endif
+CC ?= clang
+CFLAGS ?= -std=c11 -O0 -g -fopenmp=libomp
 SOURCE := src/DRB173-non-sibling-taskdep-yes.c
 REFERENCE := tests/reference/DRB174-non-sibling-taskdep-no.c
 

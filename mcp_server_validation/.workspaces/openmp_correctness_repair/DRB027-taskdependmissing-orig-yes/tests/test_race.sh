@@ -3,11 +3,10 @@ set -euo pipefail
 
 source_file=$1
 expected_output_file=$2
-compiler=${CC:-gcc}
+source tests/archer.sh
 
 mkdir -p build
-"$compiler" -std=c11 -O0 -g -fopenmp -fsanitize=thread "$source_file" -o build/tsan-app
-"$compiler" -std=c11 -O0 -g -fopenmp tests/reference/DRB072-taskdep1-orig-no.c -o build/reference-app
+"$compiler" -std=c11 -O0 -g "${repair_openmp_flags[@]}" -fsanitize=thread "$source_file" -o build/tsan-app
 
 if ! grep -Eq '^[[:space:]]*#[[:space:]]*pragma[[:space:]]+omp[[:space:]]+(parallel[[:space:]]+(for|sections)|for|sections|task)' "$source_file"; then
     echo "The OpenMP work-sharing construct was removed." >&2
@@ -16,10 +15,9 @@ fi
 
 expected_output=$(<"$expected_output_file")
 for workers in 2 4; do
-    OMP_NUM_THREADS="$workers" ./build/reference-app
     output="build/test-${workers}.out"
     errors="build/tsan-${workers}.err"
-    if ! TSAN_OPTIONS="halt_on_error=1 exitcode=66" OMP_NUM_THREADS="$workers" ./build/tsan-app >"$output" 2>"$errors"; then
+    if ! TSAN_OPTIONS="$REPAIR_TSAN_OPTIONS" OMP_NUM_THREADS="$workers" ./build/tsan-app >"$output" 2>"$errors"; then
         cat "$errors" >&2
         exit 1
     fi

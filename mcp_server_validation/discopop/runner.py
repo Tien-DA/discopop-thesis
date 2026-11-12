@@ -280,13 +280,11 @@ class DiscoPoPRunner:
 
         if not seq_settings.exists():
             seq_settings.write_text(
-                """{
-    "CC": "gcc",
-    "CXX": "g++",
-    "CFLAGS": "",
-    "CXXFLAGS": ""
-}
-""",
+                json.dumps({
+                    "CC": os.environ.get("CC", "clang") if case.repository == "openmp_correctness_repair" else "gcc",
+                    "CXX": os.environ.get("CXX", "clang++") if case.repository == "openmp_correctness_repair" else "g++",
+                    "CFLAGS": "", "CXXFLAGS": "",
+                }, indent=4) + "\n",
                 encoding="utf-8",
             )
 

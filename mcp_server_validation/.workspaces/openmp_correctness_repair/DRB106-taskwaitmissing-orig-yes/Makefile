@@ -1,5 +1,8 @@
-CC ?= gcc
-CFLAGS ?= -std=c11 -O0 -g -fopenmp
+ifeq ($(origin CC), default)
+CC := clang
+endif
+CC ?= clang
+CFLAGS ?= -std=c11 -O0 -g -fopenmp=libomp
 SOURCE := $(firstword $(wildcard src/*.c))
 
 .PHONY: all test clean

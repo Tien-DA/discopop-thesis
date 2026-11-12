@@ -1,0 +1,10 @@
+{
+  "name": "rodinia_hotspot_openmp",
+  "task": "Parallelize the Rodinia hotspot compute kernel with OpenMP. Preserve the full numerical output grid and keep genuine OpenMP parallel work.",
+  "language": "C++",
+  "parallel_framework": "OpenMP",
+  "build_command": "make all",
+  "test_command": "make test",
+  "profiling_command": "./build/hotspot 512 512 2 4 input/temp_512 input/power_512 build/output.txt",
+  "performance_command": "bash tests/measure_parallelism.sh"
+}

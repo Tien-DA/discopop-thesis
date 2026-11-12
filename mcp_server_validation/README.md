@@ -22,11 +22,10 @@ in [OmpSCR reference provenance](OMPSCR_REFERENCES.md).
 ## Supported environment
 
 Run a complete benchmark on **Linux x86_64** (native Linux, a VM, or WSL2). The
-included DataRaceBench oracles compile with GCC, OpenMP, and GCC ThreadSanitizer. macOS's
-`/usr/bin/gcc` is Apple Clang and does not support this command, so it is useful
-for inspection but is not a supported execution environment for this benchmark.
+15 correctness-repair oracles use **Clang + LLVM libomp + Archer + ThreadSanitizer**.
+macOS is useful for Python unit tests and inspection; the full oracle requires Linux.
 
-Use Python 3.10–3.13, a recent Node.js LTS release, GCC/G++ with OpenMP support,
+Use Python 3.10–3.13, a recent Node.js LTS release, the LLVM race-checking toolchain,
 and an LLVM/Clang development package supported by the DiscoPoP profiler (19–22).
 On Ubuntu/Debian, install the host prerequisites before creating the Python
 environment:
@@ -36,12 +35,60 @@ sudo apt update
 sudo apt install -y \
   build-essential gcc g++ make cmake git \
   python3 python3-venv python3-dev \
-  llvm-19-dev clang-19 libomp-19-dev libboost-all-dev
+  llvm-19 llvm-19-dev clang-19 libomp-19-dev libclang-rt-19-dev libboost-all-dev
 ```
 
-The system compiler used by the DataRaceBench tasks is `gcc`; do not set `CC` to
-Clang for their evaluators. If your distribution uses versioned compiler
-names, set `CC` to a GNU GCC executable, for example `export CC=gcc-13`.
+Use matching Clang, libomp, Archer and compiler-rt versions. For LLVM 19:
+
+```bash
+export CC=clang-19
+export COMPILER=clang-19
+export ARCHER_LIBRARY=/usr/lib/llvm-19/lib/libarcher.so
+test -f "$ARCHER_LIBRARY"
+python3 -B tests/test_repair_validation.py ReferenceOracleTests -v
+```
+
+Run the Python command from `mcp_server_validation`. If your distribution supplies
+another LLVM version supported by DiscoPoP, use that version consistently.
+The task Makefiles default to `clang`; explicit `CC` selects a versioned compiler.
+`COMPILER` is the OmpSCR build override. The helper locates Archer next to the
+selected Clang's resource directory when `ARCHER_LIBRARY` is unset.
+
+Every correctness oracle performs a toolchain self-check first: the binary must
+load libomp (not libgomp), Archer must activate, a synchronized task probe must
+pass, and a deliberately racy probe must emit a TSan race and exit 66. Failure
+is reported as `[Archer setup] ERROR`, not evidence that a reference is wrong.
+Archer is explicitly enabled via `OMP_TOOL_LIBRARIES`; its verbose output is
+restricted to the self-check so it cannot contaminate candidate stdout or the
+OmpSCR vector on stderr. TSan uses `ignore_noninstrumented_modules=1` as
+[recommended by Archer](https://openmp.llvm.org/doxygen/dir_d25e7fcf0ab543d5b35a958546f34a9d.html),
+with `halt_on_error=1` and `exitcode=66`. The oracle sets its analysis options
+explicitly rather than inheriting suppressions or disabled analysis.
+
+The shared `benchmark/archer.sh` is linked from each hidden `tests/archer.sh`.
+Workspace copying dereferences the links, so detached evaluation workspaces
+contain a standalone copy. Original candidate/reference output checks remain
+in each task's `test_race.sh` for tasks without `expected.out`. For the five
+tasks with `expected.out`, benchmark correctness checks only the candidate
+against that file: no official reference is compiled or run during `make test`.
+Reference files remain available for the separate reference-validation suite
+and paired performance measurements. Reference validation prints diagnostics directly
+and removes its isolated workspace after each task.
+For the five tasks with `tests/expected.out`, it also checks the unsanitized
+reference stdout against that file for each 1/2/4-thread control. Matching uses
+the oracle's `grep -E` regular expressions (or `__EMPTY__`), not literal text
+equality. A mismatch fails reference validation even if the oracle passes.
+The DRB027 stdout adapter and DRB106 input adapter apply to these checks too;
+the terminal prints both adaptations and each expected-output check explicitly.
+For the other ten tasks, the nine DRB oracles compare stdout with the reference
+using the same printed result format as the starting task. OmpSCR compiles both
+programs with `-DDEBUG` and the common hidden `debug_V.c` printer, then compares
+the final vector on stderr; stdout headers and timing are excluded.
+
+GCC/G++ packages are still needed by other task families and may provide the
+C++ standard library used by the DiscoPoP instrumenting compiler. The 15 repair
+performance measurements now default to Clang/libomp too, without TSan or Archer;
+do not compare their timings directly to earlier GCC/libgomp runs.
 
 If a DiscoPoP build fails with `cannot find -lstdc++` even though `clang-22`
 is installed, point the instrumenting compiler at a complete GCC installation.
@@ -86,7 +133,7 @@ Confirm the local tools before spending model tokens:
 .venv/bin/discopop_explorer --help >/dev/null
 .venv/bin/discopop_mcp_server --help >/dev/null
 opencode --version
-gcc --version
+clang-19 --version
 ```
 
 ## Configure OpenCode
@@ -195,7 +242,7 @@ value and resulting command are printed in the benchmark log.
 
 The source starts with the known race. A successful agent repair must keep the
 OpenMP taskloop, build with `make all`, and pass the evaluator's
-ThreadSanitizer and official-reference output checks with one, two, and four
+Archer/ThreadSanitizer and official-reference output checks with one, two, and four
 worker threads. Do not expect
 the unmodified source to pass `make test`.
 
@@ -264,7 +311,7 @@ write only the JSON report to stdout; diagnostic output belongs on stderr.
 All 15 race-repair tasks now use a hidden `tests/performance.json` specification
 and the shared performance test. It runs only after the correctness oracle
 passes. The test builds the candidate and official race-free reference with
-the same GCC `-O2 -fopenmp` flags, without ThreadSanitizer. It warms up both
+the same Clang `-O2 -fopenmp=libomp` flags, without ThreadSanitizer. It warms up both
 programs, calibrates a batch to about 150 ms, and runs nine paired rounds in
 alternating order. Each pair uses the same input and OpenMP team size. The
 reported ratio is the median of the nine reference-time/candidate-time
@@ -298,7 +345,7 @@ If a mode fails before the agent runs, check these prerequisites in this order:
 1. The selected `opencode` (version 2) or `claude` command is on `PATH`.
 2. The selected agent is authenticated and has a usable model configured.
 3. `discopop_cc`, `discopop_explorer`, and `discopop_mcp_server` come from the same `.venv` used for the runner.
-4. GCC can compile `-fopenmp -fsanitize=thread` and execute the resulting binary on Linux.
+4. Clang/libomp/Archer passes both self-check probes on Linux (set `CC` and `ARCHER_LIBRARY` as above).
 5. The profiler sees a supported Clang/LLVM installation (versions 19–22).
 
 `runs/`, `build/`, `.discopop/`, and temporary `opencode.json` files are generated

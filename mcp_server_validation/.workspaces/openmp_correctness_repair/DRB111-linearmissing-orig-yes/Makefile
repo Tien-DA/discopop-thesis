@@ -1,5 +1,8 @@
-CC ?= gcc
-CFLAGS ?= -std=c11 -O0 -g -fopenmp
+ifeq ($(origin CC), default)
+CC := clang
+endif
+CC ?= clang
+CFLAGS ?= -std=c11 -O0 -g -fopenmp=libomp
 SOURCE := src/DRB111-linearmissing-orig-yes.c
 REFERENCE := tests/reference/DRB112-linear-orig-no.c
 

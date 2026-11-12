@@ -1,3 +1,7 @@
+ifeq ($(origin CC), default)
+CC := clang
+endif
+CC ?= clang
 include task.mk
 
 .PHONY: all test clean
@@ -13,7 +17,7 @@ build/tsan-app: $(SOURCES)
 	$(COMPILER) $(FLAGS) -fsanitize=thread -Isrc/include -Isrc/common $(SOURCES) -o $@ $(LIBS)
 
 test:
-	bash tests/test_race.sh $(RUN_ARGS)
+	CC="$(COMPILER)" bash tests/test_race.sh $(RUN_ARGS)
 
 clean:
 	rm -rf build

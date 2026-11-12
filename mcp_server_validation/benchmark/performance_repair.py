@@ -30,10 +30,10 @@ def compile_binary(command: list[str], root: Path) -> None:
 
 
 def build(root: Path, config: dict, directory: Path) -> tuple[Path, Path]:
-    compiler = os.environ.get("CC", "gcc")
+    compiler = os.environ.get("CC", "clang")
     candidate = directory / "candidate"
     reference = directory / "reference"
-    flags = ["-std=c11", "-O2", "-fopenmp"]
+    flags = ["-std=c11", "-O2", "-fopenmp=libomp"]
     source = str(root / config["candidate"])
     official = str(root / config["reference"])
     kind = config.get("kind", "drb")
@@ -143,8 +143,8 @@ def measure(root: Path) -> dict:
         "batch_invocations": invocations,
         "workers": workers,
         "arguments": args,
-        "compiler": os.environ.get("CC", "gcc"),
-        "build_flags": ["-std=c11", "-O2", "-fopenmp"],
+        "compiler": os.environ.get("CC", "clang"),
+        "build_flags": ["-std=c11", "-O2", "-fopenmp=libomp"],
         "threshold_ratio": MIN_PERFORMANCE_RATIO,
         "ratio_method": "median_of_paired_reference_over_candidate_rounds",
         "status": status,

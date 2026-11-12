@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-compiler=${COMPILER:-gcc}
+source tests/archer.sh
 source_file=src/c_loopB.badSolution2.c
 reference_file=tests/reference/c_loopB.pipelineSolution.c
 support=(src/common/ompscrCommon.c src/common/wtime.c)
 reference_support=(tests/reference/common/ompscrCommon.c tests/reference/common/wtime.c)
-flags=(-std=c11 -O0 -g -fopenmp -DDEBUG)
+flags=(-std=c11 -O0 -g "${repair_openmp_flags[@]}" -DDEBUG)
 
 mkdir -p build
 "$compiler" "${flags[@]}" -Isrc/include -Isrc/common -Itests/reference \
@@ -23,7 +23,7 @@ for workers in 1 2 4; do
     expected="build/reference-${workers}.vector"
     actual="build/test-${workers}.vector"
     OMP_NUM_THREADS="$workers" timeout 60s ./build/reference-app "$@" >"build/reference-${workers}.out" 2>"$expected"
-    if ! TSAN_OPTIONS='halt_on_error=1 exitcode=66' OMP_NUM_THREADS="$workers" \
+    if ! TSAN_OPTIONS="$REPAIR_TSAN_OPTIONS" OMP_NUM_THREADS="$workers" \
         timeout 60s ./build/tsan-app "$@" >"build/test-${workers}.out" 2>"$actual"; then
         echo "The ${workers}-worker run failed, timed out, or reported a data race." >&2
         tail -n 20 "$actual" >&2 || true

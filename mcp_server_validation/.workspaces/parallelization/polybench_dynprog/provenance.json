@@ -1,0 +1,7 @@
+{
+  "suite": "PolyBench/C",
+  "version": "3.2",
+  "source_path": "linear-algebra/solvers/dynprog",
+  "source_repository": "/Users/dinhtienvu/dev/new_benchmark_harness/benchmarks/polybench-c-3.2",
+  "packaging": "Source and hidden serial reference copied from new_benchmark_harness"
+}
